@@ -1,0 +1,9 @@
+streamlit
+pandas
+openai
+scikit-learn
+streamlit-tags
+deep-translator
+openpyxl
+streamlit-extras
+XlsxWriter
