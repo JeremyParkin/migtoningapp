@@ -60,7 +60,8 @@ def resolve_model_choice(choice: str) -> str:
         return "gpt-4o"
     return "gpt-5-mini"
 
-model_id = resolve_model_choice(st.session_state.get("model_choice", "gpt-5-mini"))
+# model_id = resolve_model_choice(st.session_state.get("model_choice", "gpt-5-mini"))
+model_id = "gpt-5-nano"
 
 # ================== Ensure columns ==================
 # Human label column lives on the full dataset
