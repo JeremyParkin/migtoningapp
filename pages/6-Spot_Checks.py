@@ -122,14 +122,9 @@ def compute_candidates(n_to_review:int, conf_thresh:int):
 # =============== Controls ===============
 st.title("Spot Check AI Sentiment")
 
-col_c1, col_c2, col_c3 = st.columns([2,2,3])
-with col_c1:
-    n_to_review = st.number_input("How many stories to spot check?", min_value=1, max_value=200, value=15, step=1)
-with col_c2:
-    conf_thresh = st.slider("Flag low confidence below…", min_value=40, max_value=95, value=70, step=5,
-                            help="Stories under this confidence get extra priority.")
-with col_c3:
-    st.caption("Pool = AI sentiment present, no human label. Prioritizing likely negatives and higher Group Count items.")
+n_to_review = st.number_input("How many stories to spot check?", min_value=1, max_value=200, value=15, step=1)
+
+conf_thresh = 75
 
 candidates = compute_candidates(n_to_review, conf_thresh)
 
@@ -163,27 +158,20 @@ with col1:
     st.markdown(highlighted_body, unsafe_allow_html=True)
 
 with col2:
-    st.caption(f"Active label set: **{sentiment_type}**")
+    # st.caption(f"Active label set: **{sentiment_type}**")
     st.info(f"Queue: {idx+1} of {len(candidates)}")
 
     # AI Opinion summary
-    st.markdown("**AI Sentiment**")
     ai_label = row.get("AI Sentiment")
     ai_conf  = row.get("AI Sentiment Confidence")
     ai_why   = row.get("AI Sentiment Rationale")
     if pd.notna(ai_label):
-        st.write(f"**Label:** {ai_label}")
-        if pd.notna(ai_conf):
-            try:
-                st.write(f"**Confidence:** {int(float(ai_conf))}%")
-            except:
-                st.write(f"**Confidence:** {ai_conf}")
+        st.write(f"{ai_label}")
         if pd.notna(ai_why) and str(ai_why).strip():
             st.caption(str(ai_why))
     else:
         st.warning("No AI sentiment is available on this story (it won't usually appear in this page).")
 
-    st.divider()
 
     # --- Action 1: Accept AI sentiment as human label ---
     if st.button("✅ Accept AI Sentiment", use_container_width=True):
@@ -207,16 +195,15 @@ with col2:
             st.session_state.spot_idx = min(idx + 1, len(candidates) - 1)
             st.rerun()
 
-    st.divider()
 
     # Navigation
     prev_col, next_col = st.columns(2)
     with prev_col:
-        if st.button("← Prev", disabled=(idx == 0), use_container_width=True):
+        if st.button("◄ Back", disabled=(idx == 0), use_container_width=True):
             st.session_state.spot_idx = max(0, idx - 1)
             st.rerun()
     with next_col:
-        if st.button("Next →", disabled=(idx >= len(candidates)-1), use_container_width=True):
+        if st.button("Next ►", disabled=(idx >= len(candidates)-1), use_container_width=True):
             st.session_state.spot_idx = min(len(candidates)-1, idx + 1)
             st.rerun()
 
