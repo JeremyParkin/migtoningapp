@@ -1,4 +1,4 @@
-# 6-Sentiment_Tester.py (or whatever filename you use for the Tester page)
+# 9-Sentiment_Tester.py
 
 import pandas as pd
 import streamlit as st

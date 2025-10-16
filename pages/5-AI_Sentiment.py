@@ -46,8 +46,6 @@ sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 # Ensure result columns exist in both DFs
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name, pd.DataFrame())
-    # if "Sentiment Opinion" not in df.columns:
-    #     df["Sentiment Opinion"] = None
     for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]:
         if col not in df.columns:
             df[col] = None
