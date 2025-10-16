@@ -1,5 +1,4 @@
 # 4-Toning_Interface.py
-
 import re
 import json
 import pandas as pd
@@ -68,10 +67,11 @@ model_id = resolve_model_choice(st.session_state.get("model_choice", "gpt-5-mini
 if "Assigned Sentiment" not in st.session_state.df_traditional.columns:
     st.session_state.df_traditional["Assigned Sentiment"] = pd.NA
 
-# AI columns on both dfs
+# AI + Translation columns on both dfs
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name, pd.DataFrame())
-    for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]:
+    for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale",
+                "Translated Headline", "Translated Body"]:
         if col not in df.columns:
             df[col] = None
     st.session_state[df_name] = df
@@ -238,10 +238,19 @@ with col2:
     with tcol1:
         if st.button("Translate"):
             try:
-                th = translate(head_raw)
-                tb = translate(body_raw)
+                th = translate(head_raw) if (head_raw or "").strip() else None
+                tb = translate(body_raw) if (body_raw or "").strip() else None
+
+                # Persist to ALL DFs by Group ID (so it survives reruns)
+                for df_name in ["unique_stories", "df_traditional"]:
+                    df = st.session_state[df_name]
+                    mask = df["Group ID"] == current_group_id
+                    df.loc[mask, ["Translated Headline", "Translated Body"]] = [th, tb]
+
+                # (Optional) also update the in-memory filtered row this frame
                 st.session_state.filtered_stories.at[counter, "Translated Headline"] = th
                 st.session_state.filtered_stories.at[counter, "Translated Body"] = tb
+
                 st.rerun()
             except Exception as e:
                 st.error(f"Translation failed: {e}")
@@ -313,7 +322,6 @@ with col2:
     ai_rsn   = row_now.get("AI Sentiment Rationale")
 
     if ai_label and not regen:
-        # Show cached
         with sentiment_placeholder.container():
             st.write(f"**{ai_label}**")
             if ai_rsn:
