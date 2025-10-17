@@ -5,13 +5,14 @@ import pandas as pd
 import streamlit as st
 import mig_functions as mig
 
-# =============== Setup & guards ===============
+# --- Configure Streamlit page ---
 st.set_page_config(page_title="Spot Check AI Labels",
                    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
                    layout="wide")
 mig.standard_sidebar()
 st.session_state.current_page = "Spot Check"
 
+# --- Validate required workflow steps ---
 if not st.session_state.get("upload_step"):
     st.error("Please upload a CSV/XLSX before trying this step.")
     st.stop()
@@ -22,7 +23,7 @@ if not isinstance(st.session_state.get("unique_stories"), pd.DataFrame):
     st.error("Unique stories not found. Please complete earlier steps.")
     st.stop()
 
-# Ensure expected columns exist
+# --- Ensure expected columns exist ---
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name)
     if isinstance(df, pd.DataFrame):
@@ -33,18 +34,18 @@ for df_name in ["unique_stories", "df_traditional"]:
                 df[col] = None
         st.session_state[df_name] = df
 
-# Normalize sentiment type (3-way/5-way)
+# --- Normalise sentiment type (3-way/5-way) ---
 _raw_st = st.session_state.get("sentiment_type", "3-way")
 _s = str(_raw_st).strip().lower()
 sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 
-# Keywords for highlight
+# --- Prepare keywords for highlighting ---
 keywords = st.session_state.get("highlight_keyword", [])
 if not isinstance(keywords, list):
     keywords = [str(keywords)] if keywords else []
 keywords = [k for k in keywords if isinstance(k, str) and k.strip()]
 
-# =============== Utils ===============
+# --- Utility helpers ---
 def escape_markdown(text: str) -> str:
     text = str(text or "")
     markdown_special_chars = r"\`*_{}[]()#+-.!$"
@@ -66,7 +67,7 @@ def highlight_keywords(text: str, kw: list, bg="goldenrod", fg="black") -> str:
     return re.sub(pattern, repl, text, flags=re.IGNORECASE)
 
 def set_assigned_sentiment(group_id, label):
-    """Write the human label to both dfs for all rows in this group."""
+    """Write the human label to both DataFrames for every row in this group."""
     st.session_state.unique_stories.loc[
         st.session_state.unique_stories["Group ID"] == group_id, "Assigned Sentiment"
     ] = label
@@ -74,21 +75,16 @@ def set_assigned_sentiment(group_id, label):
         st.session_state.df_traditional["Group ID"] == group_id, "Assigned Sentiment"
     ] = label
 
-def compute_candidates(n_to_review:int, conf_thresh:int):
-    """
-    Pool: AI Sentiment present AND Assigned Sentiment is NA.
-    Score = 0.45*group_count_norm + 0.35*neg_score + 0.20*low_conf_score
-    - neg_score (3-way): NEGATIVE=1, NEUTRAL=0, POSITIVE=0, NOT RELEVANT=0
-      (5-way): VERY NEGATIVE=1.0, SOMEWHAT NEGATIVE=0.7, NEUTRAL/others=0
-    - low_conf_score: max(0, (conf_thresh - confidence))/conf_thresh
-    """
+def compute_candidates(n_to_review: int, conf_thresh: int):
+    """Prioritise AI-labelled stories that warrant human review."""
+    # Pool definition: AI sentiment present AND no human label yet
     df = st.session_state.unique_stories.copy()
     pool = df[df["Assigned Sentiment"].isna() & df["AI Sentiment"].notna()].copy()
     if pool.empty:
         return pool
 
     pool["AI_UPPER"] = pool["AI Sentiment"].astype(str).str.upper().str.strip()
-    # Confidence as numeric (default 100 if blank so it won't be flagged as low-confidence)
+    # Confidence as numeric (default 100 so it is not flagged as low-confidence)
     pool["AI_CONF"] = pd.to_numeric(pool["AI Sentiment Confidence"], errors="coerce").fillna(100)
     pool["GROUP_CT"] = pd.to_numeric(pool.get("Group Count", 1), errors="coerce").fillna(1)
 
@@ -108,18 +104,18 @@ def compute_candidates(n_to_review:int, conf_thresh:int):
     pool["LOWCONF"] = (conf_thresh - pool["AI_CONF"]) / conf_thresh
     pool["LOWCONF"] = pool["LOWCONF"].clip(lower=0, upper=1)
 
-    # Normalize group count
+    # Normalise group count
     max_gc = pool["GROUP_CT"].max()
     pool["GC_NORM"] = pool["GROUP_CT"] / max_gc if max_gc > 0 else 0
 
-    # Weighted score (more weight to higher Group Count)
+    # Weighted score (more weight to higher group counts)
     pool["SCORE"] = 0.45 * pool["GC_NORM"] + 0.35 * pool["NEG_SCORE"] + 0.20 * pool["LOWCONF"]
 
-    # Sort and take top N
+    # Sort and take the top N results
     pool = pool.sort_values(["SCORE", "GROUP_CT"], ascending=[False, False]).reset_index(drop=True)
     return pool.head(n_to_review)
 
-# =============== Controls ===============
+# --- Controls ---
 st.title("Spot Check AI Sentiment")
 
 n_to_review = st.number_input("How many stories to spot check?", min_value=1, max_value=200, value=15, step=1)
@@ -132,7 +128,7 @@ if candidates.empty:
     st.success("No stories need spot checking. (Either no AI labels yet, or everything already has a human label.)")
     st.stop()
 
-# Sticky nav index
+# Maintain a sticky navigation index
 st.session_state.setdefault("spot_idx", 0)
 st.session_state.spot_idx = min(st.session_state.spot_idx, len(candidates)-1)
 idx = st.session_state.spot_idx
@@ -148,7 +144,7 @@ head = escape_markdown(head_raw)
 body = escape_markdown(body_raw)
 highlighted_body = highlight_keywords(body, keywords)
 
-# =============== Layout ===============
+# --- Layout ---
 col1, col2 = st.columns([3,1], gap="large")
 
 with col1:
@@ -161,7 +157,7 @@ with col2:
     # st.caption(f"Active label set: **{sentiment_type}**")
     st.info(f"Queue: {idx+1} of {len(candidates)}")
 
-    # AI Opinion summary
+    # AI opinion summary
     ai_label = row.get("AI Sentiment")
     ai_conf  = row.get("AI Sentiment Confidence")
     ai_why   = row.get("AI Sentiment Rationale")
@@ -196,7 +192,7 @@ with col2:
             st.rerun()
 
 
-    # Navigation
+    # Navigation controls
     prev_col, next_col = st.columns(2)
     with prev_col:
         if st.button("◄ Back", disabled=(idx == 0), use_container_width=True):

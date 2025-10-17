@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 import mig_functions as mig
 
-# ================== Page setup ==================
+# --- Configure Streamlit page ---
 st.set_page_config(
     page_title="MIG Download",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
@@ -20,7 +20,7 @@ if st.session_state.get('current_page') != 'Download':
     st.session_state.download_data = None
 st.session_state.current_page = 'Download'
 
-# ================== Guards ==================
+# --- Validate required workflow steps ---
 if not st.session_state.get('upload_step'):
     st.error('Please upload a CSV/XLSX before trying this step.')
     st.stop()
@@ -28,7 +28,7 @@ if not st.session_state.get('config_step'):
     st.error('Please run the configuration step before trying this step.')
     st.stop()
 
-# ================== Helpers ==================
+# --- Helper utilities ---
 def ensure_columns():
     """Make sure we have the columns we expect in both DFs."""
     for df_name in ['df_traditional', 'unique_stories']:
@@ -167,10 +167,10 @@ def write_excel(traditional: pd.DataFrame, raw_data: pd.DataFrame) -> io.BytesIO
     output.seek(0)
     return output
 
-# ================== Recompute Hybrid on load ==================
+# --- Recompute hybrid sentiment on load ---
 refresh_hybrid_sentiment()
 
-# ================== Summary / Stats ==================
+# --- Summary and statistics ---
 ordered_labels = label_order()
 
 # Ensure categorical for plotting consistency
@@ -221,11 +221,11 @@ with col2:
     tbl['Percentage'] = (tbl['Percentage'] * 100).map(lambda x: f"{x:.1f}%")
     st.dataframe(tbl, hide_index=True)
 
-# ================== Data preview ==================
+# --- Data preview ---
 with st.expander('View Processed Data (CLEAN TRAD source)'):
     st.dataframe(st.session_state.df_traditional)
 
-# ================== Excel Export ==================
+# --- Excel export ---
 traditional = st.session_state.df_traditional
 raw_data = st.session_state.get('full_dataset', pd.DataFrame())
 
