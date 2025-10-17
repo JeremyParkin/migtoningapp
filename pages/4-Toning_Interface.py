@@ -235,7 +235,7 @@ with col1:
 # -------- Right column: Tools, labels, and navigation --------
 with col2:
     # Translation controls
-    tcol1, _ = st.columns(2)
+    tcol1, tcol2 = st.columns(2)
     with tcol1:
         if st.button("Translate"):
             try:
@@ -261,13 +261,14 @@ with col2:
     story_prompt = build_story_prompt(head_raw, body_raw)
 
     # The regenerate button clears stored AI outputs for this group
-    regen = st.button("↻ Regenerate AI opinion", key=f"regen_{current_group_id}")
-    if regen:
-        for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
-            df = st.session_state.get(df_name)
-            if isinstance(df, pd.DataFrame):
-                mask = df["Group ID"] == current_group_id
-                df.loc[mask, ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]] = [None, None, None]
+    with tcol2:
+        regen = st.button("↻ Regenerate AI opinion", key=f"regen_{current_group_id}")
+        if regen:
+            for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
+                df = st.session_state.get(df_name)
+                if isinstance(df, pd.DataFrame):
+                    mask = df["Group ID"] == current_group_id
+                    df.loc[mask, ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]] = [None, None, None]
 
     # Read the latest values after any optional clear
     row_now = st.session_state.filtered_stories.iloc[counter]
