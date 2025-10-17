@@ -332,7 +332,7 @@ with col2:
             "VERY POSITIVE": "#27ae60",  # deep green
             "NOT RELEVANT": "#7f8c8d",  # grey
         }
-        else:
+    else:
         manual_labels = [
             "NEGATIVE",
             "NEUTRAL",
