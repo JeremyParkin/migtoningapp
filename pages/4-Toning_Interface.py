@@ -358,8 +358,8 @@ with col2:
             background-color: {palette[label]} !important;
             color: black !important;
             border: 0;
-            padding: 0.6rem 0.75rem;
-            font-weight: bold;
+            padding: 0.4rem 0.6rem;
+            font-weight: bold !important;
             border-radius: 5px;
             margin-bottom: 10px; 
         }}
