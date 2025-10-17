@@ -264,7 +264,7 @@ with col2:
 
     jcol1, jcol2 = st.columns(2)
     with jcol2:
-        regen = st.button("↻ Regenerate AI opinion", key=f"regen_{current_group_id}")
+        regen = st.button("↻ Second opinion", key=f"regen_{current_group_id}")
         if regen:
             for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
                 df = st.session_state.get(df_name)
@@ -310,7 +310,7 @@ with col2:
     accept_help = None if ai_label else "AI label not ready yet."
 
     with jcol1:
-        if st.button("✅ Accept AI & Next", disabled=accept_disabled, help=accept_help):
+        if st.button("✅ Accept opinion", disabled=accept_disabled, help=accept_help):
             if ai_label:
                 mask_trad = st.session_state.df_traditional["Group ID"] == current_group_id
                 st.session_state.df_traditional.loc[mask_trad, "Assigned Sentiment"] = ai_label
