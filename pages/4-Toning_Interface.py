@@ -386,6 +386,7 @@ with col2:
             st.session_state.counter = min(len(st.session_state.filtered_stories) - 1, st.session_state.counter + 1)
             st.rerun()
 
+    st.divider()
     # Progress indicators
     numbers, progress = st.columns(2)
     with progress:
