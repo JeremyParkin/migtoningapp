@@ -228,9 +228,10 @@ highlighted_body = highlight_keywords(body, keywords)
 
 # -------- Left column: Story content --------
 with col1:
-    if URL: st.markdown(URL)
+
     st.subheader(f"{head}")
     st.markdown(highlighted_body, unsafe_allow_html=True)
+    if URL: st.markdown(URL)
 
 # -------- Right column: Tools, labels, and navigation --------
 with col2:
@@ -358,8 +359,9 @@ with col2:
             background-color: {palette[label]} !important;
             color: black !important;
             border: 0;
-            padding: 0.4rem 0.6rem;
+            padding: 0.2rem 0.6rem;
             font-weight: bold !important;
+            font-size: 14px;
             border-radius: 5px;
             margin-bottom: 10px; 
         }}
