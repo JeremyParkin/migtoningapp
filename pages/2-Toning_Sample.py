@@ -10,42 +10,42 @@ from sklearn.metrics.pairwise import cosine_distances
 import time
 
 
-# Set Streamlit configuration
+# --- Configure Streamlit page ---
 st.set_page_config(page_title="MIG Toning App",
                    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
                    layout="wide")
 
-# Set the current page in session state
+# --- Record active page in session state ---
 st.session_state.current_page = 'Toning Sample'
 
-# Sidebar configuration
+# --- Render standard sidebar ---
 mig.standard_sidebar()
 
-# Initialize st.session_state.elapsed_time if it does not exist
+# --- Initialize elapsed time tracker ---
 if 'elapsed_time' not in st.session_state:
     st.session_state.elapsed_time = 0
 
 def normalize_text(text):
-    """Convert to lowercase, remove extra spaces, remove punctuation, etc."""
-    text = str(text)     # Convert to string in case the input is not a string
-    text = text.lower()     # Convert to lowercase
-    text = text.strip()     # Remove extra spaces from the beginning and end
-    text = re.sub(r'\s+', ' ', text)     # Replace multiple spaces with a single space
-    text = text.translate(str.maketrans('', '', string.punctuation))     # Remove punctuation (optional)
+    """Normalise whitespace, casing, and punctuation for clustering."""
+    text = str(text)  # Ensure string input
+    text = text.lower()  # Convert to lowercase
+    text = text.strip()  # Trim leading and trailing spaces
+    text = re.sub(r'\s+', ' ', text)  # Collapse repeated whitespace
+    text = text.translate(str.maketrans('', '', string.punctuation))  # Optionally drop punctuation
     return text
 
 
 def remove_extra_spaces(text):
-    """Remove extra spaces from the beginning and end of a string and replace multiple spaces with a single space."""
-    text = str(text)     # Convert to string in case the input is not a string
-    text = text.strip()     # Remove extra spaces from the beginning and end
-    text = re.sub(r'\s+', ' ', text)     # Replace multiple spaces with a single space
+    """Trim excess whitespace from text while preserving content."""
+    text = str(text)  # Ensure string input
+    text = text.strip()  # Remove leading and trailing whitespace
+    text = re.sub(r'\s+', ' ', text)  # Replace repeated spaces with single spaces
     return text
 
 
 def preprocess_online_news(df):
-    """Pre-process ONLINE/ONLINE_NEWS articles by grouping by Date and Headline."""
-    # Handle column name variations
+    """Group ONLINE/ONLINE_NEWS records by published date and headline."""
+    # Resolve column naming differences across uploads
     date_column = 'Date' if 'Date' in df.columns else 'Published Date'
     type_column = 'Media Type' if 'Media Type' in df.columns else 'Type'
 
@@ -53,17 +53,17 @@ def preprocess_online_news(df):
         st.warning("Required columns for preprocessing (Date, Headline) are missing!")
         return df
 
-    # Filter only ONLINE and ONLINE_NEWS articles
+    # Focus on ONLINE and ONLINE_NEWS records only
     online_df = df[df[type_column].isin(['ONLINE', 'ONLINE_NEWS'])].copy()
 
-    # Ensure Date is in datetime format and extract year/month/day
+    # Convert dates to datetime then back to a consistent string
     online_df[date_column] = pd.to_datetime(online_df[date_column], errors='coerce')
     online_df['Published Date'] = online_df[date_column].dt.strftime('%Y-%m-%d')
 
-    # Group by Published Date and Headline
+    # Deduplicate by date and headline
     grouped = online_df.groupby(['Published Date', 'Headline']).first().reset_index()
 
-    # Merge grouped data back with non-online rows
+    # Merge cleaned online coverage with all remaining media types
     non_online_df = df[~df[type_column].isin(['ONLINE', 'ONLINE_NEWS'])]
     preprocessed_df = pd.concat([grouped, non_online_df], ignore_index=True)
 
@@ -79,64 +79,64 @@ def cluster_similar_stories(df, similarity_threshold=0.85):
     # Compute cosine distances
     cosine_distance_matrix = cosine_distances(tfidf_matrix)
 
-    # Use Agglomerative Clustering with a distance threshold
+    # Use agglomerative clustering with a distance threshold
     clustering = AgglomerativeClustering(
-        n_clusters=None,  # Let the algorithm decide the number of clusters
-        metric="precomputed",  # Use precomputed cosine distances
-        linkage="average",  # Average linkage for cosine distances
+        n_clusters=None,  # Allow the algorithm to determine cluster count
+        metric="precomputed",  # Provide the cosine distance matrix directly
+        linkage="average",  # Average linkage performs well with cosine distance
         distance_threshold=1 - similarity_threshold  # Convert similarity to distance
     )
     cluster_labels = clustering.fit_predict(cosine_distance_matrix)
 
-    # Add cluster labels as 'Group ID'
+    # Persist cluster labels as a group identifier
     df['Group ID'] = cluster_labels
     return df
 
 
 
 def cluster_by_media_type(df, similarity_threshold=0.92):
-    """Cluster stories by media type and ensure unique Group IDs across media types."""
+    """Cluster stories by media type while keeping group identifiers unique."""
     type_column = 'Media Type' if 'Media Type' in df.columns else 'Type'
 
-    # Identify unique media types
+    # Process each media type independently
     unique_media_types = df[type_column].unique()
 
     clustered_frames = []
-    group_id_offset = 0  # Offset to ensure unique Group IDs across media types
+    group_id_offset = 0  # Offset to keep group identifiers unique across media types
 
     for media_type in unique_media_types:
         st.write(f"Processing media type: {media_type}")
 
-        # Filter data for the current media type
+        # Filter rows for the current media type
         media_df = df[df[type_column] == media_type].copy()
 
         if not media_df.empty:
-            # Fill missing Headline/Snippet with empty strings
+            # Replace missing text fields with empty strings
             media_df['Headline'] = media_df['Headline'].fillna("")
             media_df['Snippet'] = media_df['Snippet'].fillna("")
 
-            # Skip processing if all headlines and snippets are empty
+            # Skip media types that do not contain meaningful text
             if media_df[['Headline', 'Snippet']].apply(lambda x: x.str.strip()).eq("").all(axis=None):
                 st.warning(f"Skipping media type {media_type} due to missing headlines and snippets.")
                 continue
 
-            # Normalize and clean text
+            # Normalize and clean text for clustering
             media_df['Normalized Headline'] = media_df['Headline'].apply(normalize_text)
             media_df['Normalized Snippet'] = media_df['Snippet'].apply(normalize_text)
 
             if len(media_df) == 1:
-                # Assign a unique Group ID to the single row
+                # Assign a unique group to single records
                 media_df['Group ID'] = group_id_offset
                 group_id_offset += 1
             else:
                 # Cluster stories for this media type
                 media_df = cluster_similar_stories(media_df, similarity_threshold=similarity_threshold)
 
-                # Offset Group IDs to make them unique
+                # Offset group identifiers to ensure global uniqueness
                 media_df['Group ID'] += group_id_offset
                 group_id_offset += media_df['Group ID'].max() + 1
 
-            # Drop normalized columns
+            # Remove helper columns created for clustering
             normalized_columns = [col for col in ['Normalized Headline', 'Normalized Snippet'] if
                                   col in media_df.columns]
             media_df = media_df.drop(columns=normalized_columns, errors='ignore')
@@ -149,7 +149,7 @@ def cluster_by_media_type(df, similarity_threshold=0.92):
 
 
 def assign_group_ids(duplicates):
-    """Assign a group ID to each article based on the similarity matrix."""
+    """Assign a group identifier to each article based on cluster membership."""
     group_id = 0
     group_ids = {}
     for i, similar_indices in duplicates.items():
@@ -161,8 +161,8 @@ def assign_group_ids(duplicates):
     return group_ids
 
 
-def identify_duplicates(cluster_labels):  ## refactored for agg clustering
-    """Group articles based on cluster labels."""
+def identify_duplicates(cluster_labels):
+    """Group article indices by shared cluster labels."""
     from collections import defaultdict
     duplicates = defaultdict(list)
     for idx, label in enumerate(cluster_labels):
@@ -171,7 +171,7 @@ def identify_duplicates(cluster_labels):  ## refactored for agg clustering
 
 
 def clean_snippet(snippet):
-    """Remove the '>>>' or '>>' from braodcast snippets."""
+    """Remove leading broadcast markers such as '>>>' or '>>'."""
     if snippet.startswith(">>>"):
         return snippet.replace(">>>", "", 1)
     if snippet.startswith(">>"):
@@ -179,10 +179,10 @@ def clean_snippet(snippet):
     else:
         return snippet
 
-# Main title of the page
+# --- Render primary page title ---
 st.title("Configuration")
 
-# Check if the upload step is completed
+# --- Guard against missing prerequisites ---
 if not st.session_state.upload_step:
     st.error('Please upload a CSV/XLSX before trying this step.')
 
@@ -191,7 +191,7 @@ else:
     if not st.session_state.config_step:
         named_entity = st.session_state.client_name
 
-        # Sampling options
+        # Offer sampling strategies
         sampling_option = st.radio(
             'Sampling options:',
             ['Take a statistically significant sample', 'Set my own sample size', 'Use full data'],
@@ -200,7 +200,7 @@ else:
 
         if sampling_option == 'Take a statistically significant sample':
             def calculate_sample_size(N, confidence_level=0.95, margin_of_error=0.05, p=0.5):
-                # Z-score for 95% confidence level
+                # Use a 95% confidence interval
                 Z = 1.96  # 95% confidence
 
                 numerator = N * (Z ** 2) * p * (1 - p)
@@ -240,7 +240,7 @@ else:
 
             sample_size = st.session_state.sample_size
 
-            # Apply sampling
+            # Apply the selected sampling strategy
             if sample_size < len(st.session_state.full_dataset):
                 df = st.session_state.df_traditional.sample(n=sample_size, random_state=1).reset_index(drop=True)
             else:
@@ -249,11 +249,11 @@ else:
             st.write(f"Full data size: {len(st.session_state.df_traditional)}")
             st.write(f"Sample size used: {len(df)}")  # Confirm the sample size
 
-            # Check if 'Coverage Snippet' column exists and rename it to 'Snippet'
+            # Align column naming for snippet text
             if 'Coverage Snippet' in df.columns:
                 df.rename(columns={'Coverage Snippet': 'Snippet'}, inplace=True)
 
-            # Normalize and preprocess
+            # Normalise and preprocess text fields
             df['Headline'] = df['Headline'].apply(remove_extra_spaces)
             df['Snippet'] = df['Snippet'].apply(remove_extra_spaces)
             df['Snippet'] = df['Snippet'].apply(clean_snippet)
@@ -263,33 +263,33 @@ else:
             # Cluster similar stories
             df = cluster_by_media_type(df, similarity_threshold=similarity_threshold)
 
-            # Assign group IDs directly to the DataFrame
+            # Ensure group identifiers are present on the DataFrame
             df['Group ID'] = df['Group ID']
 
-            # Drop the normalized columns
+            # Remove temporary normalised columns
             df = df.drop(columns=['Normalized Headline', 'Normalized Snippet'], errors='ignore')
 
-            # Update session state
+            # Persist updates to session state
             st.session_state.df_traditional = df.copy()
 
-            # Calculate group counts
+            # Calculate the size of each group
             group_counts = df.groupby('Group ID').size().reset_index(name='Group Count')
 
-            # Group by 'Group ID' and calculate unique stories
+            # Build a unique-story view with counts
             unique_stories = df.groupby('Group ID').agg(lambda x: x.iloc[0]).reset_index()
             unique_stories_with_counts = unique_stories.merge(group_counts, on='Group ID')
 
-            # Debugging outputs
-            st.write(f"Number of unique stories: {len(unique_stories_with_counts)}")  # Debugging output
-            st.write(unique_stories_with_counts.head())  # Show the first few rows for verification
+            # Provide quick confirmation outputs
+            st.write(f"Number of unique stories: {len(unique_stories_with_counts)}")
+            st.write(unique_stories_with_counts.head())
 
-            # Sort unique stories by group count
+            # Sort unique stories by descending group count
             unique_stories_sorted = unique_stories_with_counts.sort_values(by='Group Count',
                                                                            ascending=False).reset_index(drop=True)
             # Update session state
             st.session_state.unique_stories = unique_stories_sorted
 
-            # Time tracking
+            # Track the processing duration
             end_time = time.time()
             st.session_state.elapsed_time = end_time - start_time
             st.rerun()
@@ -306,7 +306,7 @@ else:
 
 
         def reset_config():
-            """Reset the configuration step and related session state variables."""
+            """Clear configuration-related state so the workflow can restart."""
             st.session_state.config_step = False
             st.session_state.sentiment_opinion = None
             st.session_state.random_sample = None
@@ -317,7 +317,7 @@ else:
             st.session_state.pop('unique_stories', None)
 
 
-        # Add reset button
+        # Offer a reset button to restart configuration
         if st.button("Reset Configuration"):
             reset_config()
             st.rerun()  # Rerun the script to reflect the reset state

@@ -8,7 +8,7 @@ from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 
-# ================== Setup ==================
+# --- Configure Streamlit page ---
 st.set_page_config(
     page_title="MIG Sentiment Tool",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
@@ -17,10 +17,10 @@ st.set_page_config(
 mig.standard_sidebar()
 st.session_state.current_page = "Toning Interface"
 
-# OpenAI client (expects st.secrets["key"])
+# --- Initialise OpenAI client (expects st.secrets["key"]) ---
 client = OpenAI(api_key=st.secrets["key"])
 
-# ================== Guards ==================
+# --- Validate required workflow steps ---
 if not st.session_state.get("upload_step"):
     st.title("Toning Interface")
     st.error("Please upload a CSV/XLSX before trying this step.")
@@ -36,18 +36,18 @@ if not st.session_state.get("toning_config_step"):
     st.error("Please complete the Toning Configuration page first.")
     st.stop()
 
-# ================== Session pulls / normalization ==================
+# --- Pull session configuration ---
 pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
 
-# Normalize sentiment type once
+# --- Normalise sentiment type once ---
 _raw_st = st.session_state.get("sentiment_type", "3-way")
 _s = str(_raw_st).strip().lower()
 sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 
-# Model resolver (prefer gpt-5-mini)
+# --- Model resolver (prefer gpt-5-mini) ---
 def resolve_model_choice(choice: str) -> str:
     if not choice:
         return "gpt-5-mini"
@@ -63,12 +63,12 @@ def resolve_model_choice(choice: str) -> str:
 # model_id = resolve_model_choice(st.session_state.get("model_choice", "gpt-5-mini"))
 model_id = "gpt-5-nano"
 
-# ================== Ensure columns ==================
+# --- Ensure required columns exist ---
 # Human label column lives on the full dataset
 if "Assigned Sentiment" not in st.session_state.df_traditional.columns:
     st.session_state.df_traditional["Assigned Sentiment"] = pd.NA
 
-# AI + Translation columns on both dfs
+# AI + translation columns on both DataFrames
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name, pd.DataFrame())
     for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale",
@@ -82,13 +82,13 @@ st.session_state.filtered_stories = st.session_state.unique_stories.copy()
 st.session_state.setdefault("counter", 0)
 counter = st.session_state.counter
 
-# Keywords compiled on P3
+# Keywords compiled on the configuration page
 keywords = st.session_state.get("highlight_keyword", [])
 if not isinstance(keywords, list):
     keywords = [str(keywords)] if keywords else []
 keywords = [k for k in keywords if isinstance(k, str) and k.strip()]
 
-# ================== Utils ==================
+# --- Utility helpers ---
 def escape_markdown(text: str) -> str:
     text = str(text or "")
     markdown_special_chars = r"\`*_{}[]()#+-.!$"
@@ -149,7 +149,7 @@ def build_story_prompt(headline: str, snippet: str) -> str:
 
 def call_ai_sentiment(story_prompt: str):
     """Function-call first; plain-text fallback."""
-    # Function-calling path
+    # Prefer function-calling responses first
     try:
         if functions:
             resp = client.chat.completions.create(
@@ -176,7 +176,7 @@ def call_ai_sentiment(story_prompt: str):
     except Exception as e:
         st.caption(f"Function-calling fallback used due to: {e}")
 
-    # Plain text fallback
+    # Fallback to plain-text parsing
     try:
         resp = client.chat.completions.create(
             model=model_id,
@@ -197,10 +197,10 @@ def call_ai_sentiment(story_prompt: str):
         st.error(f"AI sentiment failed: {e}")
         return None
 
-# ================== Layout ==================
+# --- Layout ---
 col1, col2 = st.columns([3, 1], gap="large")
 
-# End-of-list guard
+# Prevent navigation past the final story
 if counter >= len(st.session_state.filtered_stories):
     st.info("You have reached the end of the stories.")
     if st.button("Back to the first story"):
@@ -208,7 +208,7 @@ if counter >= len(st.session_state.filtered_stories):
         st.rerun()
     st.stop()
 
-# Current row
+# Active story details
 row = st.session_state.filtered_stories.iloc[counter]
 current_group_id = row["Group ID"]
 URL = str(row.get("URL", "") or "")
@@ -216,26 +216,26 @@ head_raw = row.get("Headline", "") or ""
 body_raw = row.get("Snippet", "") or ""
 count = int(row.get("Group Count", 1) or 1)
 
-# ---- Prefer translated text if present ----
+# Prefer translated text when available
 trans_head = row.get("Translated Headline")
 trans_body = row.get("Translated Body")
 head_to_show = trans_head if isinstance(trans_head, str) and trans_head.strip() else head_raw
 body_to_show = trans_body if isinstance(trans_body, str) and trans_body.strip() else body_raw
 
-# Escape + highlight
+# Escape Markdown characters and highlight keywords
 head = escape_markdown(head_to_show)
 body = escape_markdown(body_to_show)
 highlighted_body = highlight_keywords(body, keywords)
 
-# -------- Left: Story --------
+# -------- Left column: Story content --------
 with col1:
     if URL: st.markdown(URL)
     st.subheader(f"{head}")
     st.markdown(highlighted_body, unsafe_allow_html=True)
 
-# -------- Right: Tools / Opinion / Nav --------
+# -------- Right column: Tools, labels, and navigation --------
 with col2:
-    # Translate button
+    # Translation controls
     tcol1, _ = st.columns(2)
     with tcol1:
         if st.button("Translate"):
@@ -243,13 +243,13 @@ with col2:
                 th = translate(head_raw) if (head_raw or "").strip() else None
                 tb = translate(body_raw) if (body_raw or "").strip() else None
 
-                # Persist to ALL DFs by Group ID (so it survives reruns)
+                # Persist translations to all DataFrames so they survive reruns
                 for df_name in ["unique_stories", "df_traditional"]:
                     df = st.session_state[df_name]
                     mask = df["Group ID"] == current_group_id
                     df.loc[mask, ["Translated Headline", "Translated Body"]] = [th, tb]
 
-                # (Optional) also update the in-memory filtered row this frame
+                # Update the in-memory filtered row for immediate display
                 st.session_state.filtered_stories.at[counter, "Translated Headline"] = th
                 st.session_state.filtered_stories.at[counter, "Translated Body"] = tb
 
@@ -257,7 +257,7 @@ with col2:
             except Exception as e:
                 st.error(f"Translation failed: {e}")
 
-    # Label selection (HUMAN)
+    # Human sentiment selection
     with st.form("Sentiment Selector"):
         if sentiment_type == "3-way":
             choices = ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"]
@@ -277,7 +277,7 @@ with col2:
         st.session_state.counter = min(len(st.session_state.filtered_stories) - 1, st.session_state.counter + 1)
         st.rerun()
 
-    # Navigation
+    # Navigation controls
     prev_button, next_button = st.columns(2)
     with prev_button:
         if st.button("◄ Back", disabled=(st.session_state.counter == 0)):
@@ -288,7 +288,7 @@ with col2:
             st.session_state.counter = min(len(st.session_state.filtered_stories) - 1, st.session_state.counter + 1)
             st.rerun()
 
-    # Progress
+    # Progress indicators
     numbers, progress = st.columns(2)
     with progress:
         assigned_articles_count = st.session_state.df_traditional["Assigned Sentiment"].notna().sum()
@@ -298,17 +298,17 @@ with col2:
         total_stories = len(st.session_state.unique_stories)
         st.metric("Unique story", f"{counter + 1}/{total_stories}", "")
 
-    # Jump back at end
+    # Jump back to the first story when reaching the end
     if (counter + 1) == len(st.session_state.filtered_stories):
         if st.button("Back to the first story"):
             st.session_state.counter = 0
             st.rerun()
 
-    # ---------- AI Opinion (standardized storage + Regenerate) ----------
+    # ---------- AI opinion (standardised storage + regenerate) ----------
     sentiment_placeholder = st.empty()
     story_prompt = build_story_prompt(head_raw, body_raw)
 
-    # Regenerate button clears AI fields for this group
+    # The regenerate button clears stored AI outputs for this group
     regen = st.button("↻ Regenerate AI opinion", key=f"regen_{current_group_id}")
     if regen:
         for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
@@ -317,7 +317,7 @@ with col2:
                 mask = df["Group ID"] == current_group_id
                 df.loc[mask, ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]] = [None, None, None]
 
-    # Read latest values (after optional clear)
+    # Read the latest values after any optional clear
     row_now = st.session_state.filtered_stories.iloc[counter]
     ai_label = row_now.get("AI Sentiment")
     ai_conf  = row_now.get("AI Sentiment Confidence")
@@ -336,7 +336,7 @@ with col2:
             conf  = ai_result.get("confidence")
             why   = ai_result.get("explanation")
 
-            # Persist to ALL DFs for this Group ID
+            # Persist AI outputs to every DataFrame tracking this group
             for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
                 df = st.session_state[df_name]
                 mask = df["Group ID"] == current_group_id
@@ -347,7 +347,7 @@ with col2:
                 if why:
                     st.caption(str(why))
 
-    # Already-assigned human label?
+    # Display any previously assigned human label
     assigned_sentiment = st.session_state.df_traditional.loc[
         st.session_state.df_traditional["Group ID"] == current_group_id, "Assigned Sentiment"
     ].iloc[0]
