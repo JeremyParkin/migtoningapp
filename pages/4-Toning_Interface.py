@@ -235,7 +235,7 @@ with col1:
 # -------- Right column: Tools, labels, and navigation --------
 with col2:
     # Translation controls
-    tcol1, tcol2 = st.columns(2)
+    tcol1, _ = st.columns(2)
     with tcol1:
         if st.button("Translate"):
             try:
@@ -261,7 +261,9 @@ with col2:
     story_prompt = build_story_prompt(head_raw, body_raw)
 
     # The regenerate button clears stored AI outputs for this group
-    with tcol2:
+
+    jcol1, jcol2 = st.columns(2)
+    with jcol2:
         regen = st.button("↻ Regenerate AI opinion", key=f"regen_{current_group_id}")
         if regen:
             for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
@@ -306,13 +308,15 @@ with col2:
     # --- Accept AI & Next (disabled until AI label exists) ---
     accept_disabled = not bool(ai_label)
     accept_help = None if ai_label else "AI label not ready yet."
-    if st.button("✅ Accept AI & Next", disabled=accept_disabled, help=accept_help):
-        if ai_label:
-            mask_trad = st.session_state.df_traditional["Group ID"] == current_group_id
-            st.session_state.df_traditional.loc[mask_trad, "Assigned Sentiment"] = ai_label
-            st.session_state.counter = min(len(st.session_state.filtered_stories) - 1,
-                                           st.session_state.counter + 1)
-            st.rerun()
+
+    with jcol1:
+        if st.button("✅ Accept AI & Next", disabled=accept_disabled, help=accept_help):
+            if ai_label:
+                mask_trad = st.session_state.df_traditional["Group ID"] == current_group_id
+                st.session_state.df_traditional.loc[mask_trad, "Assigned Sentiment"] = ai_label
+                st.session_state.counter = min(len(st.session_state.filtered_stories) - 1,
+                                               st.session_state.counter + 1)
+                st.rerun()
 
     # --- Stacked, color-coded manual sentiment buttons ---
     st.caption("Or pick a different label:")
