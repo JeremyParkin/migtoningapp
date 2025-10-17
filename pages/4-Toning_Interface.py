@@ -354,7 +354,7 @@ with col2:
             color: black !important;
             border: 0;
             padding: 0.6rem 0.75rem;
-            font-weight: 600;
+            font-weight: bold;
             border-radius: 5px;
             margin-bottom: 10px; 
         }}
