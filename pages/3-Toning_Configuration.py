@@ -258,7 +258,7 @@ OUTPUT: Provide the uppercase label, a confidence (0–100), and a 1–2 sentenc
 
         st.session_state.toning_config_step = True
         st.session_state.last_saved = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.success(f"✅ Configuration saved for **{named_entity}** using **{sentiment_type}** labels.")
+        st.success(f"✅ Configuration saved for **{named_entity}**.")
 
 # --- Prompt and schema preview ---
 with st.expander("Generated Prompts and Function"):
