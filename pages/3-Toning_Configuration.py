@@ -4,7 +4,7 @@ from streamlit_tags import st_tags
 import mig_functions as mig
 from datetime import datetime
 
-# --- Page setup ---
+# --- Configure Streamlit page ---
 st.set_page_config(
     page_title="MIG Sentiment Tool",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
@@ -15,7 +15,7 @@ mig.standard_sidebar()
 
 st.title("Toning Configuration")
 
-# --- Guards ---
+# --- Validate required workflow steps ---
 if not st.session_state.get('upload_step', False):
     st.error('Please upload a CSV/XLSX before trying this step.')
     st.stop()
@@ -23,15 +23,15 @@ if not st.session_state.get('config_step', False):
     st.error('Please run the configuration step before trying this step.')
     st.stop()
 
-# --- Helpers ---
+# --- Helper utilities ---
 def _clean_list(lst):
     return [s.strip() for s in (lst or []) if isinstance(s, str) and s.strip()]
 
 def _init_df_columns():
-    # Human labels in full dataset
+    # Ensure human labels exist on the full dataset
     if 'Assigned Sentiment' not in st.session_state.df_traditional.columns:
         st.session_state.df_traditional['Assigned Sentiment'] = pd.NA
-    # Standard AI outputs in both DFs
+    # Ensure AI output columns exist on both DataFrames
     for df_name in ['unique_stories', 'df_traditional']:
         df = st.session_state.get(df_name, pd.DataFrame())
         for col in ['AI Sentiment', 'AI Sentiment Confidence', 'AI Sentiment Rationale']:
@@ -39,7 +39,7 @@ def _init_df_columns():
                 df[col] = None
         st.session_state[df_name] = df
 
-# --- Sticky UI defaults ---
+# --- Persist UI defaults across reruns ---
 st.session_state.setdefault(
     'ui_primary_names',
     [st.session_state.get('client_name', '')] if st.session_state.get('client_name') else []
@@ -57,7 +57,7 @@ st.session_state.setdefault('ui_sentiment_type', _default_sent_type)
 st.session_state.setdefault('toning_config_step', False)
 st.session_state.setdefault('last_saved', None)
 
-# === FORM (always visible) ===
+# === Configuration form ===
 with st.form("toning_config_form", clear_on_submit=False):
     primary_names = st_tags(
         label='**Primary name(s)**',
@@ -109,7 +109,7 @@ with st.form("toning_config_form", clear_on_submit=False):
     submitted = col_a.form_submit_button("Save Configuration", type="primary")
     reset_clicked = col_b.form_submit_button("Reset Inputs")
 
-# --- Reset (keeps form visible) ---
+# --- Reset handler (keeps form visible) ---
 if reset_clicked:
     st.session_state.ui_primary_names = [st.session_state.get('client_name', '')] if st.session_state.get('client_name') else []
     st.session_state.ui_alternate_names = []
@@ -146,14 +146,14 @@ if submitted:
 
         _init_df_columns()
 
-        # highlight_keyword (deduped)
+        # Compile highlight keywords (deduplicated)
         highlight_set = set(st.session_state.ui_primary_names)
         highlight_set.update(aliases)
         highlight_set.update(spokes)
         highlight_set.update(prods)
         st.session_state.highlight_keyword = sorted(highlight_set)
 
-        # Pre-prompt (clear sections)
+        # Build the pre-prompt with sectioned guidance
         pre_lines = [
             f"PRIMARY ENTITY (focus): {named_entity}",
             "Your task: Analyze sentiment toward the PRIMARY ENTITY only.",
@@ -168,7 +168,7 @@ if submitted:
         pre_lines += ["", "Focus ONLY on how the coverage portrays the primary entity (including legitimate carry-over per rules above)."]
         st.session_state.pre_prompt = "\n".join(pre_lines).strip()
 
-        # Post-prompt / clarifications
+        # Build the post-prompt with clarifications
         context_lines = [
             "Scope Clarifications:",
             f"- Research by {named_entity} on a negative topic is not automatically negative toward the entity.",
@@ -187,7 +187,7 @@ if submitted:
             context_lines += ["", "Analyst Rationale/Context (apply when judging gray areas):", f"- {rationale_str}"]
         st.session_state.post_prompt = "\n".join(context_lines).strip()
 
-        # Label instructions + function schema
+        # Define label instructions and the function schema
         if sentiment_type == '3-way':
             st.session_state.sentiment_instruction = f"""
 LABEL SET: POSITIVE, NEUTRAL, NEGATIVE, NOT RELEVANT
@@ -259,7 +259,7 @@ OUTPUT: Provide the uppercase label, a confidence (0–100), and a 1–2 sentenc
         st.session_state.toning_config_step = True
         st.session_state.last_saved = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# --- Output / Debug (always visible) ---
+# --- Prompt and schema preview ---
 with st.expander("Generated Prompts and Function"):
     st.markdown("### Generated Prompts and Function")
     if st.session_state.get('last_saved'):

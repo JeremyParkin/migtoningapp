@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from openai import OpenAI
 
-# ================== Setup ==================
+# --- Configure Streamlit page ---
 st.set_page_config(
     page_title="Bulk AI Sentiment",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
@@ -21,7 +21,7 @@ st.session_state.current_page = "Bulk AI Toning"
 
 client = OpenAI(api_key=st.secrets["key"])
 
-# ================== Guards ==================
+# --- Validate required workflow steps ---
 if not st.session_state.get("upload_step"):
     st.error("Please upload a CSV/XLSX before trying this step.")
     st.stop()
@@ -32,18 +32,18 @@ if not st.session_state.get("toning_config_step"):
     st.error("Please complete the Toning Configuration step before running bulk AI toning.")
     st.stop()
 
-# ================== Session pulls ==================
+# --- Pull session configuration ---
 pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
 
-# Label set (3-way/5-way) from config page
+# --- Resolve active sentiment label set ---
 _raw_st = st.session_state.get("sentiment_type") or st.session_state.get("ui_sentiment_type") or "3-way"
 _s = str(_raw_st).strip().lower()
 sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 
-# Ensure result columns exist in both DFs
+# --- Ensure result columns exist in both DataFrames ---
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name, pd.DataFrame())
     for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]:
@@ -51,7 +51,7 @@ for df_name in ["unique_stories", "df_traditional"]:
             df[col] = None
     st.session_state[df_name] = df
 
-# ================== Helpers ==================
+# --- Helper utilities ---
 def build_story_prompt(headline: str, snippet: str) -> str:
     parts = []
     if pre_prompt: parts.append(pre_prompt)
@@ -63,12 +63,8 @@ def build_story_prompt(headline: str, snippet: str) -> str:
     return "\n\n".join(parts)
 
 def call_ai_sentiment(story_prompt: str):
-    """
-    Try legacy function-calling first using your saved schema.
-    Fallback to plain text and light parse.
-    Returns dict: {sentiment, confidence, explanation, usage?}
-    """
-    # 1) Function-calling path (uses your Page-3 `functions` schema)
+    """Prefer function-calling responses and fall back to plain text parsing."""
+    # 1) Function-calling path (uses the Page-3 `functions` schema)
     if functions:
         try:
             resp = client.chat.completions.create(
@@ -92,10 +88,10 @@ def call_ai_sentiment(story_prompt: str):
                         "usage": getattr(resp, "usage", None),
                     }
         except Exception:
-            # fall through to plaintext
+            # Fall through to plain-text handling
             pass
 
-    # 2) Plain text fallback
+    # 2) Plain-text fallback
     resp = client.chat.completions.create(
         model="gpt-5-mini",
         messages=[
@@ -117,22 +113,22 @@ def call_ai_sentiment(story_prompt: str):
     conf = max(0, min(100, int(m.group(1)))) if m else None
     return {"sentiment": sent, "confidence": conf, "explanation": txt, "usage": getattr(resp, "usage", None)}
 
-# ================== Determine remaining groups ==================
-# Groups with ANY human label in df_traditional are excluded from AI
+# --- Determine which groups need AI sentiment ---
+# Groups with any human label in df_traditional are excluded from AI processing
 human_labeled_groups = set(
     st.session_state.df_traditional.loc[
         st.session_state.df_traditional["Assigned Sentiment"].notna(), "Group ID"
     ].unique()
 )
 
-# We also skip groups where an AI Sentiment already exists (to avoid duplicates)
+# We also skip groups where an AI sentiment already exists (to avoid duplicates)
 already_ai_groups = set(
     st.session_state.unique_stories.loc[
         st.session_state.unique_stories["AI Sentiment"].notna(), "Group ID"
     ].unique()
 )
 
-# Remaining = no human label AND no existing AI
+# Remaining = no human label AND no existing AI output
 remaining_mask = (~st.session_state.unique_stories["Group ID"].isin(human_labeled_groups)) & \
                  (~st.session_state.unique_stories["Group ID"].isin(already_ai_groups))
 remaining = st.session_state.unique_stories.loc[remaining_mask].reset_index(drop=False)  # keep original index
@@ -151,7 +147,7 @@ if reset_ai_clicked:
         st.session_state[df_name] = df
     st.success("Cleared AI results. Human labels remain unchanged.")
 
-# ================== Run ==================
+# --- Run bulk toning when triggered ---
 if run_clicked:
     MAX_WORKERS = 8   # fixed, best-practice default
     lock = Lock()

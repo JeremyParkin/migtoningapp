@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import mig_functions as mig
 
-# ============== Page Setup ==============
+# --- Configure Streamlit page ---
 st.set_page_config(
     page_title="MIG Sentiment Tester",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
@@ -13,7 +13,7 @@ st.set_page_config(
 mig.standard_sidebar()
 st.title("AI Sentiment Analysis Tester")
 
-# ============== Guards ==============
+# --- Validate required workflow steps ---
 if not st.session_state.get("upload_step"):
     st.error("Please upload a CSV/XLSX before trying this step.")
     st.stop()
@@ -22,7 +22,7 @@ if not st.session_state.get("config_step"):
     st.error("Please run the configuration step before trying this step.")
     st.stop()
 
-# ============== Helpers ==============
+# --- Helper utilities ---
 def _first_non_na(series: pd.Series):
     for x in series:
         if pd.notna(x) and str(x).strip():
@@ -71,15 +71,15 @@ def distribution(series: pd.Series, labels):
     out["OTHER"] = other
     return out
 
-# ============== Build Hybrid + Comparison ==============
-# Build or rebuild Hybrid each run
+# --- Build hybrid sentiment and comparison views ---
+# Build or rebuild hybrid sentiment on each run
 group_hybrid = build_group_hybrid()
 
 # Merge onto unique_stories to compare per group
 u = st.session_state.unique_stories.merge(group_hybrid, on="Group ID", how="left")
 
 
-# --- Ensure 'Hybrid Sentiment' exists after merge (handle suffixing/overlap) ---
+# Ensure 'Hybrid Sentiment' exists after merge (handle suffixing/overlap)
 if "Hybrid Sentiment" not in u.columns:
     # If pandas suffixed during merge, grab the right-hand version
     candidates = [c for c in u.columns if c.endswith("Hybrid Sentiment")]
@@ -92,7 +92,7 @@ if "Hybrid Sentiment" not in u.columns:
         u.loc[mask, "Hybrid Sentiment"] = u.get("AI_Sentiment")
 
 
-# Compare only where we have both a human Sentiment and a Hybrid
+# Compare only where we have both a human sentiment label and a hybrid label
 comp = u.copy()
 comp = comp[comp["Hybrid Sentiment"].notna() & comp["Sentiment"].notna()].copy()
 
@@ -119,7 +119,7 @@ labels = label_set_from_session()
 human_dist  = distribution(comp["Human_Upper"], labels)
 hybrid_dist = distribution(comp["Hybrid_Upper"], labels)
 
-# ============== Summary ==============
+# --- Summary ---
 st.markdown("### 🔍 Human vs Hybrid Sentiment — Summary")
 
 c1, c2, c3 = st.columns(3)
@@ -141,9 +141,9 @@ for lab in labels + ["OTHER"]:
 # st.dataframe(pd.DataFrame(dist_rows), hide_index=True, use_container_width=True)
 
 
-# === Build Full Comparison Summary Table ===
+# === Build full comparison summary table ===
 # Inputs expected: named_entity, model, toning_rationale, st.session_state.uploaded_file_name
-# Dataframe expected: u with columns ['Hybrid Sentiment','Sentiment','Group Count']
+# DataFrame expected: u with columns ['Hybrid Sentiment','Sentiment','Group Count']
 
 # ---- Page vars used in the summary table ----
 named_entity = (
@@ -152,10 +152,10 @@ named_entity = (
     or "Unknown Entity"
 )
 
-# whatever model you actually used for AI on this page/run
+# Whatever model you actually used for AI on this page/run
 model = st.session_state.get("model_choice", "gpt-5-mini")
 
-# guidance/rationale captured on p3 (or empty if none)
+# Guidance/rationale captured on page 3 (or empty if none)
 toning_rationale = st.session_state.get("ui_toning_rationale", "") or ""
 
 
@@ -201,7 +201,7 @@ labels = ["POSITIVE", "NEUTRAL", "NEGATIVE", "OTHER"]
 human_dist = comp["Human_UP"].map(_base_label).value_counts(normalize=True).reindex(labels, fill_value=0.0)
 ai_dist    = comp["AI_UP"].map(_base_label).value_counts(normalize=True).reindex(labels, fill_value=0.0)
 
-# Hypothetical Hybrid (first 10 human-toned) Weighted Match Rate
+# Hypothetical hybrid (first 10 human-toned) weighted match rate
 sim = comp.copy()
 if "Group Count" in sim.columns:
     sim = sim.sort_values(by="Group Count", ascending=False).reset_index(drop=True)
@@ -241,7 +241,7 @@ summary_df = pd.DataFrame([summary_row])
 st.table(summary_df)
 
 
-# ============== Detailed View ==============
+# --- Detailed view ---
 st.subheader("Detailed Comparison Table")
 
 # Columns to display
@@ -266,7 +266,7 @@ if only_mismatch:
 cols_to_show = [c for c in cols_to_show if c in df_view.columns]
 st.dataframe(df_view[cols_to_show].reset_index(drop=True), hide_index=True, use_container_width=True)
 
-# ============== Footer Actions ==============
+# --- Footer actions ---
 colA, colB = st.columns([1, 3])
 with colA:
     if st.button("Recompute Hybrid Now"):
