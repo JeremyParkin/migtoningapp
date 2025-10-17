@@ -242,3 +242,4 @@ with st.form("download_form"):
 if st.session_state.download_data is not None:
     export_name = f"{st.session_state.client_name} - {st.session_state.focus} - MIG_Toned.xlsx"
     st.download_button('Download Excel', st.session_state.download_data, file_name=export_name, type="primary")
+
