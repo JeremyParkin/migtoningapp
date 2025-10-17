@@ -325,12 +325,12 @@ with col2:
             "NOT RELEVANT",
         ]
         palette = {
-            "VERY NEGATIVE":     "#c0392b",  # deep red
-            "SOMEWHAT NEGATIVE": "#e67e22",  # orange
-            "NEUTRAL":           "#f1c40f",  # yellow
-            "SOMEWHAT POSITIVE": "#2ecc71",  # green
-            "VERY POSITIVE":     "#27ae60",  # deep green
-            "NOT RELEVANT":      "#7f8c8d",  # grey
+            "VERY NEGATIVE":     "#f8b4b4",  # light red
+            "SOMEWHAT NEGATIVE": "#ffd0a6",  # light orange
+            "NEUTRAL":           "#ffe97a",  # light yellow
+            "SOMEWHAT POSITIVE": "#b8f0b8",  # light green
+            "VERY POSITIVE":     "#8ee28e",  # green
+            "NOT RELEVANT":      "#d3d3d3",  # light grey
         }
     else:
         manual_labels = [
@@ -340,10 +340,10 @@ with col2:
             "NOT RELEVANT",
         ]
         palette = {
-            "NEGATIVE":      "#e74c3c",
-            "NEUTRAL":       "#f1c40f",
-            "POSITIVE":      "#2ecc71",
-            "NOT RELEVANT":  "#7f8c8d",
+            "NEGATIVE": "#f8b4b4",
+            "NEUTRAL": "#ffe97a",
+            "POSITIVE": "#b8f0b8",
+            "NOT RELEVANT": "#d3d3d3",
         }
 
     def colored_button(label: str, key: str):
@@ -351,11 +351,12 @@ with col2:
         button {{
             width: 100%;
             background-color: {palette[label]} !important;
-            color: white !important;
+            color: black !important;
             border: 0;
             padding: 0.6rem 0.75rem;
             font-weight: 600;
-            border-radius: 8px;
+            border-radius: 5px;
+            margin-bottom: 10px; 
         }}
         """
         with stylable_container(key=f"btn_{key}", css_styles=css):
