@@ -325,14 +325,14 @@ with col2:
             "NOT RELEVANT",
         ]
         palette = {
-            "VERY NEGATIVE":     "#f8b4b4",  # light red
-            "SOMEWHAT NEGATIVE": "#ffd0a6",  # light orange
-            "NEUTRAL":           "#ffe97a",  # light yellow
-            "SOMEWHAT POSITIVE": "#b8f0b8",  # light green
-            "VERY POSITIVE":     "#8ee28e",  # green
-            "NOT RELEVANT":      "#d3d3d3",  # light grey
+            "VERY NEGATIVE": "#c0392b",  # deep red
+            "SOMEWHAT NEGATIVE": "#e67e22",  # orange
+            "NEUTRAL": "#f1c40f",  # yellow
+            "SOMEWHAT POSITIVE": "#2ecc71",  # green
+            "VERY POSITIVE": "#27ae60",  # deep green
+            "NOT RELEVANT": "#7f8c8d",  # grey
         }
-    else:
+        else:
         manual_labels = [
             "NEGATIVE",
             "NEUTRAL",
@@ -340,10 +340,10 @@ with col2:
             "NOT RELEVANT",
         ]
         palette = {
-            "NEGATIVE": "#f8b4b4",
-            "NEUTRAL": "#ffe97a",
-            "POSITIVE": "#b8f0b8",
-            "NOT RELEVANT": "#d3d3d3",
+            "NEGATIVE": "#e74c3c",
+            "NEUTRAL": "#f1c40f",
+            "POSITIVE": "#2ecc71",
+            "NOT RELEVANT": "#7f8c8d",
         }
 
     def colored_button(label: str, key: str):
