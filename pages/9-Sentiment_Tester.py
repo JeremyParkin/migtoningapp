@@ -277,4 +277,3 @@ with colB:
         "Hybrid = human **Assigned Sentiment** if present within the group, otherwise the group’s **AI Sentiment**. "
         "Weights (if shown) use Group Count."
     )
-
