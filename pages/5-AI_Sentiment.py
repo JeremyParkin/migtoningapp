@@ -16,12 +16,20 @@ st.set_page_config(
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
     layout="wide",
 )
+
+# Standard sidebar (reads running totals from session_state)
 mig.standard_sidebar()
 st.session_state.current_page = "Bulk AI Toning"
 
 client = OpenAI(api_key=st.secrets["key"])
 
-# --- Validate required workflow steps ---
+# --- If we just reran to refresh the sidebar, show the last batch summary now ---
+_last = st.session_state.pop("__last_batch_summary__", None)
+if _last:
+    st.success(f"Completed AI toning for {_last['done']} group(s) in {_last['elapsed']:.1f}s.")
+    st.caption(f"Token usage this batch (if reported): input={_last['in_tok']:,} • output={_last['out_tok']:,}")
+
+# --- Guards ---
 if not st.session_state.get("upload_step"):
     st.error("Please upload a CSV/XLSX before trying this step.")
     st.stop()
@@ -32,18 +40,19 @@ if not st.session_state.get("toning_config_step"):
     st.error("Please complete the Toning Configuration step before running bulk AI toning.")
     st.stop()
 
-# --- Pull session configuration ---
+# --- Config pulls ---
 pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
+model_id = (st.session_state.get("model_choice") or "gpt-5-mini").strip()
 
-# --- Resolve active sentiment label set ---
+# --- Sentiment set ---
 _raw_st = st.session_state.get("sentiment_type") or st.session_state.get("ui_sentiment_type") or "3-way"
 _s = str(_raw_st).strip().lower()
 sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 
-# --- Ensure result columns exist in both DataFrames ---
+# --- Ensure columns ---
 for df_name in ["unique_stories", "df_traditional"]:
     df = st.session_state.get(df_name, pd.DataFrame())
     for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]:
@@ -51,7 +60,34 @@ for df_name in ["unique_stories", "df_traditional"]:
             df[col] = None
     st.session_state[df_name] = df
 
-# --- Helper utilities ---
+# --- Sidebar usage counters (fallback if mig.add_api_usage isn't wired) ---
+st.session_state.setdefault("api_tokens_in", 0)
+st.session_state.setdefault("api_tokens_out", 0)
+st.session_state.setdefault("api_cost_usd", 0.0)
+
+def get_prices(model: str) -> tuple[float, float]:
+    tbl = getattr(mig, "_OPENAI_PRICES", {})
+    p = tbl.get((model or "").strip())
+    if not p:
+        return 0.25, 2.00
+    return float(p.get("in", 0.25)), float(p.get("out", 2.00))
+
+def apply_usage_to_session(in_tok: int, out_tok: int, model: str):
+    st.session_state.api_tokens_in += int(in_tok or 0)
+    st.session_state.api_tokens_out += int(out_tok or 0)
+    pin, pout = get_prices(model)
+    st.session_state.api_cost_usd += (in_tok / 1_000_000) * pin + (out_tok / 1_000_000) * pout
+    # Optional: central log, if implemented
+    try:
+        class _U:  # minimal shim
+            prompt_tokens = int(in_tok or 0)
+            completion_tokens = int(out_tok or 0)
+        class _R: usage = _U()
+        mig.add_api_usage(_R(), model)
+    except Exception:
+        pass
+
+# --- Helpers ---
 def build_story_prompt(headline: str, snippet: str) -> str:
     parts = []
     if pre_prompt: parts.append(pre_prompt)
@@ -63,12 +99,20 @@ def build_story_prompt(headline: str, snippet: str) -> str:
     return "\n\n".join(parts)
 
 def call_ai_sentiment(story_prompt: str):
-    """Prefer function-calling responses and fall back to plain text parsing."""
-    # 1) Function-calling path (uses the Page-3 `functions` schema)
+    def parse_plain_text(txt: str):
+        cand3 = ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"]
+        cand5 = ["VERY POSITIVE","SOMEWHAT POSITIVE","NEUTRAL","SOMEWHAT NEGATIVE","VERY NEGATIVE","NOT RELEVANT"]
+        cand = cand3 if sentiment_type == "3-way" else cand5
+        sent = next((c for c in cand if re.search(rf"\b{re.escape(c)}\b", txt)), None)
+        m = re.search(r"confidence[^0-9]{0,10}(\d{1,3})", txt, flags=re.I)
+        conf = max(0, min(100, int(m.group(1)))) if m else None
+        return sent, conf, txt
+
+    # Function-calling path
     if functions:
         try:
             resp = client.chat.completions.create(
-                model="gpt-5-mini",
+                model=model_id,
                 messages=[
                     {"role": "system", "content": "You are a highly knowledgeable media analysis AI."},
                     {"role": "user", "content": story_prompt},
@@ -77,6 +121,8 @@ def call_ai_sentiment(story_prompt: str):
                 function_call={"name": "analyze_sentiment"},
             )
             choice = resp.choices[0]
+            in_tok = int(getattr(resp.usage, "prompt_tokens", 0) or 0)
+            out_tok = int(getattr(resp.usage, "completion_tokens", 0) or 0)
             if getattr(choice.message, "function_call", None):
                 fc = choice.message.function_call
                 if fc and fc.name == "analyze_sentiment":
@@ -85,60 +131,53 @@ def call_ai_sentiment(story_prompt: str):
                         "sentiment": args.get("sentiment"),
                         "confidence": args.get("confidence"),
                         "explanation": args.get("explanation"),
-                        "usage": getattr(resp, "usage", None),
+                        "in_tok": in_tok, "out_tok": out_tok,
                     }
         except Exception:
-            # Fall through to plain-text handling
             pass
 
-    # 2) Plain-text fallback
+    # Plain text fallback
     resp = client.chat.completions.create(
-        model="gpt-5-mini",
+        model=model_id,
         messages=[
             {"role": "system", "content": "You are a highly knowledgeable media analysis AI."},
             {"role": "user", "content": story_prompt},
         ],
     )
     txt = resp.choices[0].message.content.strip()
+    in_tok = int(getattr(resp.usage, "prompt_tokens", 0) or 0)
+    out_tok = int(getattr(resp.usage, "completion_tokens", 0) or 0)
+    sent, conf, why = parse_plain_text(txt)
+    return {"sentiment": sent, "confidence": conf, "explanation": why, "in_tok": in_tok, "out_tok": out_tok}
 
-    candidates_3 = ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"]
-    candidates_5 = [
-        "VERY POSITIVE", "SOMEWHAT POSITIVE", "NEUTRAL",
-        "SOMEWHAT NEGATIVE", "VERY NEGATIVE", "NOT RELEVANT"
-    ]
-    cand = candidates_3 if sentiment_type == "3-way" else candidates_5
-
-    sent = next((c for c in cand if re.search(rf"\b{re.escape(c)}\b", txt)), None)
-    m = re.search(r"confidence[^0-9]{0,10}(\d{1,3})", txt, flags=re.I)
-    conf = max(0, min(100, int(m.group(1)))) if m else None
-    return {"sentiment": sent, "confidence": conf, "explanation": txt, "usage": getattr(resp, "usage", None)}
-
-# --- Determine which groups need AI sentiment ---
-# Groups with any human label in df_traditional are excluded from AI processing
+# --- Compute remaining groups ---
 human_labeled_groups = set(
     st.session_state.df_traditional.loc[
         st.session_state.df_traditional["Assigned Sentiment"].notna(), "Group ID"
     ].unique()
 )
-
-# We also skip groups where an AI sentiment already exists (to avoid duplicates)
 already_ai_groups = set(
     st.session_state.unique_stories.loc[
         st.session_state.unique_stories["AI Sentiment"].notna(), "Group ID"
     ].unique()
 )
-
-# Remaining = no human label AND no existing AI output
 remaining_mask = (~st.session_state.unique_stories["Group ID"].isin(human_labeled_groups)) & \
                  (~st.session_state.unique_stories["Group ID"].isin(already_ai_groups))
-remaining = st.session_state.unique_stories.loc[remaining_mask].reset_index(drop=False)  # keep original index
+remaining = st.session_state.unique_stories.loc[remaining_mask].reset_index(drop=False)
 
+# ==================== UI ====================
 st.title("Bulk AI Sentiment Toning")
-st.caption(f"Active label set: **{sentiment_type}**  •  Model: **gpt-5-mini**")
-st.write(f"Groups remaining for AI (no human label & no prior AI): **{len(remaining)}**")
+st.caption(f"Active label set: **{sentiment_type}** • Model: **{model_id}**")
 
-run_clicked = st.button("Run AI on All Remaining Groups", type="primary", disabled=(len(remaining) == 0))
-reset_ai_clicked = st.button("Clear AI Results (keep human labels)")
+# Controls (batch size + buttons under it)
+batch_size = st.number_input(
+    "Batch size", min_value=1, max_value=2000,
+    value=min(25, max(1, len(remaining))), step=25
+)
+run_clicked = st.button("▶️ Run next batch", type="primary", disabled=(len(remaining) == 0))
+reset_ai_clicked = st.button("🧹 Clear AI results (keep human labels)")
+
+st.divider()
 
 if reset_ai_clicked:
     for df_name in ["unique_stories", "df_traditional"]:
@@ -146,14 +185,20 @@ if reset_ai_clicked:
         df.loc[:, ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]] = None
         st.session_state[df_name] = df
     st.success("Cleared AI results. Human labels remain unchanged.")
+    st.stop()
 
-# --- Run bulk toning when triggered ---
+# --- Run a batch ---
 if run_clicked:
-    MAX_WORKERS = 8   # fixed, best-practice default
+    batch_df = remaining.head(batch_size).copy()
+    if batch_df.empty:
+        st.info("No eligible groups found to process.")
+        st.stop()
+
+    MAX_WORKERS = 8
     lock = Lock()
     progress_bar = st.progress(0.0)
-    stats = {"done": 0, "total": len(remaining), "input_tokens": 0, "output_tokens": 0}
-    start = time.time()
+    stats = {"done": 0, "total": len(batch_df)}
+    total_in, total_out = 0, 0
 
     def work(row):
         gid = row["Group ID"]
@@ -166,8 +211,9 @@ if run_clicked:
         except Exception as e:
             return {"group_id": gid, "result": None, "error": str(e)}
 
+    start = time.time()
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futures = {ex.submit(work, row): i for i, row in remaining.iterrows()}
+        futures = {ex.submit(work, row): i for i, row in batch_df.iterrows()}
         for fut in as_completed(futures):
             out = fut.result()
 
@@ -183,40 +229,38 @@ if run_clicked:
             ai_label = res.get("sentiment")
             ai_conf  = res.get("confidence")
             ai_rsn   = res.get("explanation")
-
-            # Update token usage if available
-            usage = res.get("usage")
-            if usage:
-                try:
-                    stats["input_tokens"]  += getattr(usage, "prompt_tokens", 0) or 0
-                    stats["output_tokens"] += getattr(usage, "completion_tokens", 0) or 0
-                except Exception:
-                    pass
+            total_in  += int(res.get("in_tok", 0) or 0)
+            total_out += int(res.get("out_tok", 0) or 0)
 
             gid = out["group_id"]
 
-            # Update unique_stories for this group
+            # Update both DataFrames for this group
             st.session_state.unique_stories.loc[
                 st.session_state.unique_stories["Group ID"] == gid,
                 ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]
             ] = [ai_label, ai_conf, ai_rsn]
-
-            # Update all rows in df_traditional for this group
             st.session_state.df_traditional.loc[
                 st.session_state.df_traditional["Group ID"] == gid,
                 ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]
             ] = [ai_label, ai_conf, ai_rsn]
 
-    progress_bar.progress(1.0)
     elapsed = time.time() - start
-    st.success(f"Completed AI toning for {stats['done']} group(s) in {elapsed:.1f}s.")
-    st.caption(f"Token usage (if reported): input={stats['input_tokens']}, output={stats['output_tokens']}")
+    progress_bar.progress(1.0)
 
-    with st.expander("Preview: Unique Stories (updated)"):
-        st.dataframe(
-            st.session_state.unique_stories.sort_values(by=["Group ID"]).reset_index(drop=True)
-        )
+    # Update usage totals (MAIN THREAD), stash summary, then force a rerun so sidebar re-renders
+    apply_usage_to_session(total_in, total_out, model_id)
+    st.session_state["__last_batch_summary__"] = {
+        "done": stats["done"], "elapsed": elapsed, "in_tok": total_in, "out_tok": total_out
+    }
+    st.rerun()
+else:
+    st.info("Ready. Set your batch size, then click **Run next batch**.")
 
-    with st.expander("Preview: Full Dataset (df_traditional) sample"):
-        st.dataframe(st.session_state.df_traditional.head(50))
-
+# Bottom status
+remaining_mask = (~st.session_state.unique_stories["Group ID"].isin(
+    st.session_state.df_traditional.loc[st.session_state.df_traditional["Assigned Sentiment"].notna(), "Group ID"]
+)) & (~st.session_state.unique_stories["Group ID"].isin(
+    st.session_state.unique_stories.loc[st.session_state.unique_stories["AI Sentiment"].notna(), "Group ID"]
+))
+remaining_now = st.session_state.unique_stories.loc[remaining_mask]
+st.caption(f"Groups remaining (no human label & no AI): **{len(remaining_now)}**")

@@ -19,10 +19,7 @@ st.set_page_config(
     layout="wide",
 )
 # Global CSS: pad the top
-st.markdown(
-    "<style>.block-container{padding-top:3rem !important;}</style>",
-    unsafe_allow_html=True
-)
+st.markdown("<style>.block-container{padding-top:3rem !important;}</style>", unsafe_allow_html=True)
 
 mig.standard_sidebar()
 st.session_state.current_page = "Spot Check"
@@ -46,59 +43,56 @@ pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
+model_id = st.session_state.get("model_choice", "gpt-5-mini")
+
+# Force second opinion to GPT-5 (pricing already added in mig_functions)
+SECOND_OPINION_MODEL = "gpt-5"
+st.session_state.setdefault("spot_ai_model_override", None)
 
 # --- Normalise sentiment type (3-way/5-way) ---
 _raw_st = st.session_state.get("sentiment_type", "3-way")
 _s = str(_raw_st).strip().lower()
 sentiment_type = "5-way" if _s.startswith("5") or "5-way" in _s else "3-way"
 
-# --- Model resolver (same as Toning; default gpt-5-mini) ---
-def resolve_model_choice(choice: str) -> str:
-    if not choice:
-        return "gpt-5-mini"
-    c = str(choice).strip().lower()
-    if "gpt-5-mini" in c:
-        return "gpt-5-mini"
-    if "gpt-4o" in c and "mini" in c:
-        return "gpt-4o-mini"
-    if c in {"gpt-4o", "gpt4o", "gpt 4o"}:
-        return "gpt-4o"
-    return "gpt-5-mini"
-
-model_id = resolve_model_choice(st.session_state.get("model_choice", "gpt-5-mini"))
-
 # --- Ensure expected columns exist + translation cols ---
 for df_name in ["unique_stories", "df_traditional"]:
-    df = st.session_state.get(df_name)
-    if isinstance(df, pd.DataFrame):
-        if "Assigned Sentiment" not in df.columns:
-            df["Assigned Sentiment"] = pd.NA
-        for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale",
-                    "Translated Headline", "Translated Body"]:
-            if col not in df.columns:
-                df[col] = None
-        st.session_state[df_name] = df
+    df = st.session_state.get(df_name, pd.DataFrame())
+    if "Assigned Sentiment" not in df.columns:
+        df["Assigned Sentiment"] = pd.NA
+    for col in [
+        "AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale",
+        "Translated Headline", "Translated Body"
+    ]:
+        if col not in df.columns:
+            df[col] = None
+    st.session_state[df_name] = df
 
-# --- Prepare keywords for highlighting ---
+# --- Highlighting inputs (display list kept for fallback) ---
 keywords = st.session_state.get("highlight_keyword", [])
 if not isinstance(keywords, list):
     keywords = [str(keywords)] if keywords else []
 keywords = [k for k in keywords if isinstance(k, str) and k.strip()]
+tolerant_pat_str = st.session_state.get("highlight_regex_str")  # built on config page
 
 # --- AI loading flags (for disabling refresh/accept) ---
 st.session_state.setdefault("spot_ai_loading", False)
 st.session_state.setdefault("spot_ai_refresh_requested", False)
 
-# --- Utility helpers (match Toning Interface) ---
+# ===================== Utils =====================
 def escape_markdown(text: str) -> str:
+    """Escape Markdown special chars outside of URLs for safe st.markdown rendering."""
     text = str(text or "")
     markdown_special_chars = r"\`*_{}[]()#+-.!$"
     url_pattern = r"https?:\/\/[^\s]+"
-    def esc(part): return re.sub(r"([{}])".format(re.escape(markdown_special_chars)), r"\\\1", part)
+
+    def esc(part: str) -> str:
+        return re.sub(r"([{}])".format(re.escape(markdown_special_chars)), r"\\\1", part)
+
     parts = re.split(r"(" + url_pattern + r")", text)
     return "".join(part if re.match(url_pattern, part) else esc(part) for part in parts)
 
-def highlight_keywords(text: str, kw: list, bg="goldenrod", fg="black") -> str:
+def _simple_highlight(text: str, kw: list, bg="goldenrod", fg="black") -> str:
+    """Fallback highlighter: exact keyword/phrase with word-ish boundaries."""
     text = str(text or "")
     if not kw:
         return text
@@ -110,6 +104,19 @@ def highlight_keywords(text: str, kw: list, bg="goldenrod", fg="black") -> str:
     def repl(m): return f"<span style='background-color:{bg};color:{fg};'>{m.group(0)}</span>"
     return re.sub(pattern, repl, text, flags=re.IGNORECASE)
 
+def highlight_with_tolerant_regex(text: str, fallback_keywords: list, bg="goldenrod", fg="black") -> str:
+    """Use tolerant regex string from config; fallback to simple highlighter."""
+    s = str(text or "")
+    pat_str = tolerant_pat_str
+    if pat_str:
+        try:
+            # Pattern string already embeds (?i) from builder; compile as-is.
+            rx = re.compile(pat_str)
+            return rx.sub(lambda m: f"<span style='background-color:{bg};color:{fg};'>{m.group(0)}</span>", s)
+        except re.error:
+            pass
+    return _simple_highlight(s, fallback_keywords, bg=bg, fg=fg)
+
 def split_text(text, limit=700, sentence_limit=350):
     sentences = re.split(r"(?<=[.!?])\s+", str(text or ""))
     chunks, current = [], ""
@@ -117,11 +124,18 @@ def split_text(text, limit=700, sentence_limit=350):
         s = s or ""
         while len(s) > sentence_limit:
             part, s = s[:sentence_limit], s[sentence_limit:]
-            if current: chunks.append(current); current = part
-            else: current = part
-        if len(current) + len(s) <= limit: current += (" " if current else "") + s
-        else: chunks.append(current); current = s
-    if current: chunks.append(current)
+            if current:
+                chunks.append(current)
+                current = part
+            else:
+                current = part
+        if len(current) + len(s) <= limit:
+            current += (" " if current else "") + s
+        else:
+            chunks.append(current)
+            current = s
+    if current:
+        chunks.append(current)
     return chunks
 
 def translate_concurrently(chunks):
@@ -130,8 +144,10 @@ def translate_concurrently(chunks):
     with ThreadPoolExecutor(max_workers=30) as ex:
         futures = [(i, ex.submit(translator.translate, c)) for i, c in enumerate(chunks)]
         for i, fut in futures:
-            try: results[i] = fut.result()
-            except Exception as e: results[i] = f"Error: {e}"
+            try:
+                results[i] = fut.result()
+            except Exception as e:
+                results[i] = f"Error: {e}"
     return results
 
 def translate(text):
@@ -139,20 +155,26 @@ def translate(text):
 
 def build_story_prompt(headline: str, snippet: str) -> str:
     parts = []
-    if pre_prompt: parts.append(pre_prompt)
-    if sentiment_instruction: parts.append(sentiment_instruction)
-    if post_prompt: parts.append(post_prompt)
+    if pre_prompt:
+        parts.append(pre_prompt)
+    if sentiment_instruction:
+        parts.append(sentiment_instruction)
+    if post_prompt:
+        parts.append(post_prompt)
     parts.append("This is the news story:")
     parts.append(f"HEADLINE: {headline}")
     parts.append(f"BODY: {snippet}")
     return "\n\n".join(parts)
 
-def call_ai_sentiment(story_prompt: str):
-    """Function-call first; plain-text fallback."""
+def call_ai_sentiment(story_prompt: str, model_override: str | None = None):
+    """Prefer function-call; fallback to parsing plain text. Track cost via mig.add_api_usage. Supports one-shot model override (GPT-5)."""
+    model_to_use = model_override or model_id
+
+    # Function-calling path
     try:
         if functions:
             resp = client.chat.completions.create(
-                model=model_id,
+                model=model_to_use,
                 messages=[
                     {"role": "system", "content": "You are a highly knowledgeable media analysis AI."},
                     {"role": "user", "content": story_prompt},
@@ -160,6 +182,7 @@ def call_ai_sentiment(story_prompt: str):
                 functions=functions,
                 function_call={"name": "analyze_sentiment"},
             )
+            mig.add_api_usage(resp, model_to_use)
             choice = resp.choices[0]
             if getattr(choice.message, "function_call", None):
                 fc = choice.message.function_call
@@ -174,18 +197,25 @@ def call_ai_sentiment(story_prompt: str):
     except Exception as e:
         st.caption(f"Function-calling fallback used due to: {e}")
 
+    # Plain-text fallback
     try:
         resp = client.chat.completions.create(
-            model=model_id,
+            model=model_to_use,
             messages=[
                 {"role": "system", "content": "You are a highly knowledgeable media analysis AI."},
                 {"role": "user", "content": story_prompt},
             ],
         )
+        mig.add_api_usage(resp, model_to_use)
         txt = resp.choices[0].message.content.strip()
+
         cand3 = ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"]
-        cand5 = ["VERY POSITIVE","SOMEWHAT POSITIVE","NEUTRAL","SOMEWHAT NEGATIVE","VERY NEGATIVE","NOT RELEVANT"]
+        cand5 = [
+            "VERY POSITIVE", "SOMEWHAT POSITIVE", "NEUTRAL",
+            "SOMEWHAT NEGATIVE", "VERY NEGATIVE", "NOT RELEVANT"
+        ]
         cand = cand3 if sentiment_type == "3-way" else cand5
+
         sent = next((c for c in cand if re.search(rf"\b{re.escape(c)}\b", txt)), None)
         m = re.search(r"confidence[^0-9]{0,10}(\d{1,3})", txt, flags=re.I)
         conf = max(0, min(100, int(m.group(1)))) if m else None
@@ -205,18 +235,15 @@ def set_assigned_sentiment(group_id, label):
 
 def compute_candidates(n_to_review: int, conf_thresh: int):
     """Prioritise AI-labelled stories that warrant human review."""
-    # Pool definition: AI sentiment present AND no human label yet
     df = st.session_state.unique_stories.copy()
     pool = df[df["Assigned Sentiment"].isna() & df["AI Sentiment"].notna()].copy()
     if pool.empty:
         return pool
 
     pool["AI_UPPER"] = pool["AI Sentiment"].astype(str).str.upper().str.strip()
-    # Confidence as numeric (default 100 so it is not flagged as low-confidence)
     pool["AI_CONF"] = pd.to_numeric(pool["AI Sentiment Confidence"], errors="coerce").fillna(100)
     pool["GROUP_CT"] = pd.to_numeric(pool.get("Group Count", 1), errors="coerce").fillna(1)
 
-    # Negative emphasis
     if sentiment_type == "3-way":
         pool["NEG_SCORE"] = pool["AI_UPPER"].map({"NEGATIVE": 1.0}).fillna(0.0)
     else:
@@ -225,36 +252,28 @@ def compute_candidates(n_to_review: int, conf_thresh: int):
             "SOMEWHAT NEGATIVE": 0.7
         }).fillna(0.0)
 
-    # Low confidence component
     conf_thresh = max(1, int(conf_thresh))
     pool["LOWCONF"] = (conf_thresh - pool["AI_CONF"]) / conf_thresh
     pool["LOWCONF"] = pool["LOWCONF"].clip(lower=0, upper=1)
 
-    # Normalise group count
     max_gc = pool["GROUP_CT"].max()
     pool["GC_NORM"] = pool["GROUP_CT"] / max_gc if max_gc > 0 else 0
 
-    # Weighted score (more weight to higher group counts)
     pool["SCORE"] = 0.45 * pool["GC_NORM"] + 0.35 * pool["NEG_SCORE"] + 0.20 * pool["LOWCONF"]
-
-    # Sort and take the top N results
     pool = pool.sort_values(["SCORE", "GROUP_CT"], ascending=[False, False]).reset_index(drop=True)
     return pool.head(n_to_review)
 
 # --- Controls ---
-# st.title("Spot Check AI Sentiment")
-
 with sidebar:
     n_to_review = st.number_input("How many stories to spot check?", min_value=1, max_value=200, value=15, step=1)
 conf_thresh = 75
 
 candidates = compute_candidates(n_to_review, conf_thresh)
-
 if candidates.empty:
     st.success("No stories need spot checking. (Either no AI labels yet, or everything already has a human label.)")
     st.stop()
 
-# Maintain a sticky navigation index
+# Sticky navigation index
 st.session_state.setdefault("spot_idx", 0)
 st.session_state.spot_idx = min(st.session_state.spot_idx, len(candidates)-1)
 idx = st.session_state.spot_idx
@@ -271,10 +290,11 @@ trans_body = row.get("Translated Body")
 head_to_show = trans_head if isinstance(trans_head, str) and trans_head.strip() else head_raw
 body_to_show = trans_body if isinstance(trans_body, str) and trans_body.strip() else body_raw
 
-# Highlight story text
-head = escape_markdown(head_to_show)
-body = escape_markdown(body_to_show)
-highlighted_body = highlight_keywords(body, keywords)
+# Escape + tolerant highlight
+head_display = escape_markdown(head_to_show)
+body_display = escape_markdown(body_to_show)
+highlighted_head = highlight_with_tolerant_regex(head_display, keywords)
+highlighted_body = highlight_with_tolerant_regex(body_display, keywords)
 
 # --- Sidebar: Translate ---
 with sidebar:
@@ -295,18 +315,17 @@ with sidebar:
             st.error(f"Translation failed: {e}")
 
 # --- Layout ---
-col1, col2 = st.columns([3,1], gap="large")
+col1, col2 = st.columns([3, 1], gap="large")
 
 with col1:
-    st.subheader(head)
+    # use markdown heading so highlights render (subheader won't render HTML spans)
+    st.markdown(f"### {highlighted_head}", unsafe_allow_html=True)
     st.markdown(highlighted_body, unsafe_allow_html=True)
     st.divider()
     if URL:
         st.markdown(URL)
 
 with col2:
-    # st.info(f"Queue: {idx+1} of {len(candidates)}")
-
     # ---------- AI opinion (standardised storage + controlled loading) ----------
     sentiment_placeholder = st.empty()
     story_prompt = build_story_prompt(head_raw, body_raw)
@@ -324,7 +343,10 @@ with col2:
     # If a refresh/first-load is requested, do the call here
     if st.session_state.spot_ai_loading and st.session_state.spot_ai_refresh_requested:
         with st.spinner("Generating AI opinion..."):
-            ai_result = call_ai_sentiment(story_prompt)
+            ai_result = call_ai_sentiment(
+                story_prompt,
+                model_override=st.session_state.spot_ai_model_override  # may force gpt-5 for second opinion
+            )
         if ai_result:
             label = ai_result.get("sentiment")
             conf  = ai_result.get("confidence")
@@ -334,13 +356,16 @@ with col2:
                 df = st.session_state[df_name]
                 mask = df["Group ID"] == current_group_id
                 df.loc[mask, ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]] = [label, conf, why]
-        # flip flags and rerun
+        # flip flags and clear override, then rerun
         st.session_state.spot_ai_loading = False
         st.session_state.spot_ai_refresh_requested = False
+        st.session_state.spot_ai_model_override = None
         st.rerun()
 
     # Re-read fresh values after any refresh
-    row = st.session_state.unique_stories.loc[st.session_state.unique_stories["Group ID"] == current_group_id].iloc[0]
+    row = st.session_state.unique_stories.loc[
+        st.session_state.unique_stories["Group ID"] == current_group_id
+    ].iloc[0]
     ai_label = row.get("AI Sentiment")
     ai_rsn   = row.get("AI Sentiment Rationale")
 
@@ -371,7 +396,8 @@ with col2:
         if st.button("↻ Second opinion", disabled=st.session_state.spot_ai_loading, use_container_width=True):
             st.session_state.spot_ai_loading = True
             st.session_state.spot_ai_refresh_requested = True
-            # Clear cached AI fields for this group
+            st.session_state.spot_ai_model_override = SECOND_OPINION_MODEL  # <- force GPT-5 for this run
+            # Clear cached AI fields for this group to show spinner & disable Accept
             for df_name in ["unique_stories", "df_traditional"]:
                 df = st.session_state.get(df_name)
                 if isinstance(df, pd.DataFrame):
@@ -383,20 +409,16 @@ with col2:
     st.caption("Or pick a different label:")
     if sentiment_type == "5-way":
         manual_labels = [
-            "VERY NEGATIVE",
-            "SOMEWHAT NEGATIVE",
-            "NEUTRAL",
-            "SOMEWHAT POSITIVE",
-            "VERY POSITIVE",
-            "NOT RELEVANT",
+            "VERY NEGATIVE", "SOMEWHAT NEGATIVE", "NEUTRAL",
+            "SOMEWHAT POSITIVE", "VERY POSITIVE", "NOT RELEVANT",
         ]
         palette = {
-            "VERY NEGATIVE": "#c0392b",  # deep red
-            "SOMEWHAT NEGATIVE": "#e67e22",  # orange
-            "NEUTRAL": "#f1c40f",        # yellow
-            "SOMEWHAT POSITIVE": "#2ecc71",  # green
-            "VERY POSITIVE": "#27ae60",  # deep green
-            "NOT RELEVANT": "#7f8c8d",   # grey
+            "VERY NEGATIVE": "#c0392b",
+            "SOMEWHAT NEGATIVE": "#e67e22",
+            "NEUTRAL": "#f1c40f",
+            "SOMEWHAT POSITIVE": "#2ecc71",
+            "VERY POSITIVE": "#27ae60",
+            "NOT RELEVANT": "#7f8c8d",
         }
     else:
         manual_labels = ["NEGATIVE", "NEUTRAL", "POSITIVE", "NOT RELEVANT"]

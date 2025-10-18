@@ -1,130 +1,185 @@
-import streamlit as st
+# 3-Toning_Configuration.py
+
+import re
+import html
+import unicodedata
 import pandas as pd
+import streamlit as st
 from streamlit_tags import st_tags
 import mig_functions as mig
 from datetime import datetime
+from typing import List, Dict, Tuple
 
 # --- Configure Streamlit page ---
 st.set_page_config(
     page_title="MIG Sentiment Tool",
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide"
+    layout="wide",
 )
-st.session_state.current_page = 'Toning Configuration'
+st.session_state.current_page = "Toning Configuration"
 mig.standard_sidebar()
 
 st.title("Toning Configuration")
 
 # --- Validate required workflow steps ---
-if not st.session_state.get('upload_step', False):
-    st.error('Please upload a CSV/XLSX before trying this step.')
+if not st.session_state.get("upload_step", False):
+    st.error("Please upload a CSV/XLSX before trying this step.")
     st.stop()
-if not st.session_state.get('config_step', False):
-    st.error('Please run the configuration step before trying this step.')
+if not st.session_state.get("config_step", False):
+    st.error("Please run the configuration step before trying this step.")
     st.stop()
 
-# --- Helper utilities ---
-def _clean_list(lst):
-    return [s.strip() for s in (lst or []) if isinstance(s, str) and s.strip()]
-
+# -------------------- Helpers: columns & state --------------------
 def _init_df_columns():
     # Ensure human labels exist on the full dataset
-    if 'Assigned Sentiment' not in st.session_state.df_traditional.columns:
-        st.session_state.df_traditional['Assigned Sentiment'] = pd.NA
+    if "Assigned Sentiment" not in st.session_state.df_traditional.columns:
+        st.session_state.df_traditional["Assigned Sentiment"] = pd.NA
     # Ensure AI output columns exist on both DataFrames
-    for df_name in ['unique_stories', 'df_traditional']:
+    for df_name in ["unique_stories", "df_traditional"]:
         df = st.session_state.get(df_name, pd.DataFrame())
-        for col in ['AI Sentiment', 'AI Sentiment Confidence', 'AI Sentiment Rationale']:
+        for col in ["AI Sentiment", "AI Sentiment Confidence", "AI Sentiment Rationale"]:
             if col not in df.columns:
                 df[col] = None
         st.session_state[df_name] = df
 
-# --- Persist UI defaults across reruns ---
+def _clean_list(lst: List[str]) -> List[str]:
+    return [s.strip() for s in (lst or []) if isinstance(s, str) and s.strip()]
+
+# -------------------- Tolerant regex builder (store STRING, compile on UI pages) --------------------
+def _kw_variant_pattern(kw: str) -> str:
+    """
+    Build a tolerant regex for a single keyword/phrase:
+      - apostrophes: straight ' and curly ’ and prime ′
+      - hyphens/dashes: -, ‐, ‒, –, —, −
+      - spaces: normal + NBSP
+      - optional dots in acronyms
+    Everything else is escaped literally.
+    """
+    APOS  = r"[\'\u2019\u2032]"                 # ' ’ ′
+    HYPH  = r"[\-\u2010\u2011\u2012\u2013\u2014\u2212]"  # - ‐ ‒ – — −
+    SPACE = r"[ \t\u00A0]+"                     # space, tab, NBSP
+
+    out = []
+    for ch in kw:
+        if ch in ("'", "’", "′"):
+            out.append(APOS)
+        elif ch in ("-", "‐", "‒", "–", "—", "−"):
+            out.append(HYPH)
+        elif ch.isspace():
+            out.append(SPACE)
+        elif ch == ".":
+            out.append(r"\.?")  # optional dot for acronyms
+        else:
+            out.append(re.escape(ch))
+    return "".join(out)
+
+def build_tolerant_regex_str(keywords: List[str]) -> str | None:
+    """Return a single alternation pattern string with case-insensitive flag embedded."""
+    kws = [k for k in (keywords or []) if isinstance(k, str) and k.strip()]
+    if not kws:
+        return None
+    parts = [_kw_variant_pattern(k) for k in kws]
+    # Word-ish boundaries instead of \b to play nice with Unicode punctuation
+    return r"(?i)(?<!\w)(?:%s)(?!\w)" % "|".join(parts)
+
+# -------------------- Persist UI defaults across reruns --------------------
 st.session_state.setdefault(
-    'ui_primary_names',
-    [st.session_state.get('client_name', '')] if st.session_state.get('client_name') else []
+    "ui_primary_names",
+    [st.session_state.get("client_name", "")] if st.session_state.get("client_name") else [],
 )
+st.session_state.setdefault("ui_alternate_names", [])
+st.session_state.setdefault("ui_spokespeople", [])
+st.session_state.setdefault("ui_products", [])
+st.session_state.setdefault("ui_toning_rationale", "")
 
-st.session_state.setdefault('ui_alternate_names', [])
-st.session_state.setdefault('ui_spokespeople', [])
-st.session_state.setdefault('ui_products', [])
-st.session_state.setdefault('ui_toning_rationale', "")
+_default_sent_type = st.session_state.get("sentiment_type", "3-way")
+st.session_state.setdefault("ui_sentiment_type", _default_sent_type)
 
-# Keep UI select in sync with any existing saved sentiment_type
-_default_sent_type = st.session_state.get('sentiment_type', '3-way')
-st.session_state.setdefault('ui_sentiment_type', _default_sent_type)
+st.session_state.setdefault("toning_config_step", False)
+st.session_state.setdefault("last_saved", None)
 
-st.session_state.setdefault('toning_config_step', False)
-st.session_state.setdefault('last_saved', None)
-
-# === Configuration form ===
+# -------------------- Configuration form --------------------
 with st.form("toning_config_form", clear_on_submit=False):
     primary_names = st_tags(
-        label='**Primary name(s)**',
-        text='Press enter to add more',
+        label="**Primary name(s)**",
+        text="Press enter to add more",
         maxtags=1,
         value=st.session_state.ui_primary_names,
-        key='primary_names_tags'
+        key="primary_names_tags",
     )
 
-    sentiment_type = st.selectbox(
-        "**Sentiment Type**",
-        ['3-way', '5-way'],
-        index=0 if st.session_state.ui_sentiment_type == '3-way' else 1,
-        help='3-way is standard (Positive/Neutral/Negative). 5-way adds intensity.',
-        key='sentiment_type_select'
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        sentiment_type = st.selectbox(
+            "**Sentiment Type**",
+            ["3-way", "5-way"],
+            index=0 if st.session_state.ui_sentiment_type == "3-way" else 1,
+            help="3-way is standard (Positive/Neutral/Negative). 5-way adds more gradations.",
+            key="sentiment_type_select",
+        )
+    with col2:
+        model = st.selectbox(
+            "Select Model",
+            ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"],
+            help="GPT-5-mini is recommended for most tasks.",
+        )
 
     st.divider()
 
     alternate_names = st_tags(
-        label='**Alternate names**',
-        text='Press enter to add more',
+        label="**Alternate names**",
+        text="Press enter to add more",
         maxtags=10,
         value=st.session_state.ui_alternate_names,
-        key='alternate_names_tags'
+        key="alternate_names_tags",
     )
     spokespeople = st_tags(
-        label='**Key spokespeople**',
-        text='Press enter to add more',
+        label="**Key spokespeople**",
+        text="Press enter to add more",
         maxtags=10,
         value=st.session_state.ui_spokespeople,
-        key='spokespeople_tags'
+        key="spokespeople_tags",
     )
     products = st_tags(
-        label='**Products or sub-brands**',
-        text='Press enter to add more',
+        label="**Products or sub-brands**",
+        text="Press enter to add more",
         maxtags=10,
         value=st.session_state.ui_products,
-        key='products_tags'
+        key="products_tags",
     )
 
     toning_rationale = st.text_area(
         "**Additional rationale, context, or guidance** (optional):",
         st.session_state.ui_toning_rationale,
-        key='toning_rationale_text'
+        key="toning_rationale_text",
     )
 
-    col_a, col_b = st.columns([1,1])
+    col_a, col_b = st.columns([1, 1])
     submitted = col_a.form_submit_button("Save Configuration", type="primary")
     reset_clicked = col_b.form_submit_button("Reset Inputs")
 
-# --- Reset handler (keeps form visible) ---
+# -------------------- Reset handler (keeps form visible) --------------------
 if reset_clicked:
-    st.session_state.ui_primary_names = [st.session_state.get('client_name', '')] if st.session_state.get('client_name') else []
+    st.session_state.ui_primary_names = [st.session_state.get("client_name", "")] if st.session_state.get("client_name") else []
     st.session_state.ui_alternate_names = []
     st.session_state.ui_spokespeople = []
     st.session_state.ui_products = []
     st.session_state.ui_toning_rationale = ""
-    st.session_state.ui_sentiment_type = '3-way'
-    st.session_state.pop('sentiment_type', None)
-    for k in ['pre_prompt','post_prompt','sentiment_instruction','functions','highlight_keyword']:
+    st.session_state.ui_sentiment_type = "3-way"
+
+    # Clear derived/session config
+    for k in [
+        "sentiment_type", "model_choice",
+        "pre_prompt", "post_prompt", "sentiment_instruction", "functions",
+        "highlight_keyword", "highlight_regex_str"
+    ]:
         st.session_state.pop(k, None)
+
     st.session_state.toning_config_step = False
     st.session_state.last_saved = None
     st.rerun()
 
-# --- Save handler ---
+# -------------------- Save handler --------------------
 if submitted:
     if not primary_names or not str(primary_names[0]).strip():
         st.warning("Add at least one **Primary name** (e.g., the brand/entity being toned) before saving.")
@@ -137,6 +192,7 @@ if submitted:
         st.session_state.ui_toning_rationale = toning_rationale or ""
         st.session_state.ui_sentiment_type = sentiment_type
         st.session_state.sentiment_type = sentiment_type
+        st.session_state.model_choice = model
 
         named_entity = st.session_state.ui_primary_names[0]
         aliases = st.session_state.ui_alternate_names
@@ -146,18 +202,23 @@ if submitted:
 
         _init_df_columns()
 
-        # Compile highlight keywords (deduplicated)
-        highlight_set = set(st.session_state.ui_primary_names)
-        highlight_set.update(aliases)
-        highlight_set.update(spokes)
-        highlight_set.update(prods)
-        st.session_state.highlight_keyword = sorted(highlight_set)
+        # --- Build highlight keywords (display) + tolerant regex (string) ---
+        display_keywords = list(st.session_state.ui_primary_names) + aliases + spokes + prods
+        # Dedupe case-insensitively while preserving original display form
+        seen_cf, deduped_display = set(), []
+        for k in display_keywords:
+            cf = k.casefold()
+            if cf not in seen_cf:
+                seen_cf.add(cf)
+                deduped_display.append(k.strip())
+        st.session_state.highlight_keyword = deduped_display
+        st.session_state.highlight_regex_str = build_tolerant_regex_str(deduped_display)
 
-        # Build the pre-prompt with sectioned guidance
+        # --- Build prompts ---
         pre_lines = [
             f"PRIMARY ENTITY (focus): {named_entity}",
             "Your task: Analyze sentiment toward the PRIMARY ENTITY only.",
-            "Consider references where sentiment should carry over to the primary entity when acting on its behalf."
+            "Consider references where sentiment should carry over to the primary entity when acting on its behalf.",
         ]
         if aliases:
             pre_lines += ["", "ALIASES / ALTERNATE NAMES (treat as the same entity when present):", ", ".join(aliases)]
@@ -168,27 +229,25 @@ if submitted:
         pre_lines += ["", "Focus ONLY on how the coverage portrays the primary entity (including legitimate carry-over per rules above)."]
         st.session_state.pre_prompt = "\n".join(pre_lines).strip()
 
-        # Build the post-prompt with clarifications
         context_lines = [
             "Scope Clarifications:",
             f"- Research by {named_entity} on a negative topic is not automatically negative toward the entity.",
             "- Hosting/sponsoring an event about a negative issue is not automatically negative.",
             "- Straight factual coverage is Neutral.",
             "- Passing mentions without a strong stance are generally Neutral.",
-
             "",
             "Attribution Rules:",
             f"1) When a spokesperson acts explicitly for {named_entity}, attribute that sentiment to the entity.",
             f"2) When a product or sub-brand is discussed, attribute sentiment to {named_entity} unless clearly unrelated.",
             "3) Do not transfer sentiment from unrelated external topics unless the article directly links them.",
-            f"4) If {named_entity} (or valid aliases) is not mentioned, respond with NOT RELEVANT."
+            f"4) If {named_entity} (or valid aliases) is not mentioned, respond with NOT RELEVANT.",
         ]
         if rationale_str:
             context_lines += ["", "Analyst Rationale/Context (apply when judging gray areas):", f"- {rationale_str}"]
         st.session_state.post_prompt = "\n".join(context_lines).strip()
 
-        # Define label instructions and the function schema
-        if sentiment_type == '3-way':
+        # --- Function schema / labeling instruction ---
+        if sentiment_type == "3-way":
             st.session_state.sentiment_instruction = f"""
 LABEL SET: POSITIVE, NEUTRAL, NEGATIVE, NOT RELEVANT
 
@@ -259,27 +318,25 @@ OUTPUT: Provide the uppercase label, a confidence (0–100), and a 1–2 sentenc
         st.session_state.toning_config_step = True
         st.session_state.last_saved = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.success(f"✅ Configuration saved for **{named_entity}**.")
+        st.toast("Toning configuration saved.", icon="✅")
 
-# --- Prompt and schema preview ---
-with st.expander("Generated Prompts and Function"):
-    st.markdown("### Generated Prompts and Function")
-    if st.session_state.get('last_saved'):
+# -------------------- Prompt & schema preview --------------------
+with st.expander("Generated Prompts, Keywords & Function"):
+    if st.session_state.get("last_saved"):
         st.caption(f"Last saved: {st.session_state.last_saved}")
 
-    if 'pre_prompt' in st.session_state:
+    if "pre_prompt" in st.session_state:
         st.write("**Pre-prompt:**")
         st.code(st.session_state.pre_prompt)
-    if 'post_prompt' in st.session_state:
-        st.write("**Post-prompt:**")
+    if "post_prompt" in st.session_state:
+        st.write("**Labeling Clarifications:**")
         st.code(st.session_state.post_prompt)
-    if 'sentiment_instruction' in st.session_state:
+    if "sentiment_instruction" in st.session_state:
         st.write("**Labeling Instruction:**")
         st.code(st.session_state.sentiment_instruction)
-    if 'highlight_keyword' in st.session_state:
-        st.write("**Highlight keywords (compiled):**")
-        st.write(st.session_state.highlight_keyword)
-    if 'functions' in st.session_state:
-        with st.expander("Debug: Generated Function Schema", expanded=False):
-            st.json(st.session_state.functions)
 
+    st.write("**Highlight keywords (display):**")
+    st.write(st.session_state.get("highlight_keyword", []))
 
+    st.write("**Tolerant highlight regex (string stored for UI pages):**")
+    st.code(st.session_state.get("highlight_regex_str", "") or "")
