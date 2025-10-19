@@ -19,7 +19,7 @@ st.set_page_config(page_title="MIG Toning App",
 st.session_state.current_page = 'Toning Sample'
 
 # --- Render standard sidebar ---
-mig.standard_sidebar()
+# mig.standard_sidebar()
 
 # --- Initialize elapsed time tracker ---
 if 'elapsed_time' not in st.session_state:

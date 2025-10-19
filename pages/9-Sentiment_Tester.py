@@ -10,7 +10,11 @@ st.set_page_config(
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
     layout="wide",
 )
-mig.standard_sidebar()
+# mig.standard_sidebar()
+if not st.session_state.get("is_admin"):
+    st.error("This page is only available to admins.")
+    st.stop()
+
 st.title("AI Sentiment Analysis Tester")
 
 # --- Validate required workflow steps ---

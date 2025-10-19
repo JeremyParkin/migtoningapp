@@ -12,7 +12,7 @@ st.set_page_config(
     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
     layout="wide",
 )
-mig.standard_sidebar()
+# mig.standard_sidebar()
 st.title("Download")
 
 # Remember last page's download buffer only within this page

@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # Standard sidebar (reads running totals from session_state)
-mig.standard_sidebar()
+# mig.standard_sidebar()
 st.session_state.current_page = "Bulk AI Toning"
 
 client = OpenAI(api_key=st.secrets["key"])
