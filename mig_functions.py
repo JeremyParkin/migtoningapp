@@ -21,7 +21,8 @@ def standard_sidebar() -> None:
           .eczjsme9, .st-emotion-cache-1wqrzgl { overflow: visible !important; max-width: 250px !important; }
           .st-emotion-cache-a8w3f8 { overflow: visible !important; }
           .st-emotion-cache-1cypcdb { max-width: 250px !important; }
-          .e1wa958q1 { filter: brightness(2000%); }
+          .e1mq0gaz1 { filter: brightness(2000%); }
+          
         </style>
         """,
         unsafe_allow_html=True,
