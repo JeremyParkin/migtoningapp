@@ -167,6 +167,36 @@ def write_excel(traditional: pd.DataFrame, raw_data: pd.DataFrame) -> io.BytesIO
     output.seek(0)
     return output
 
+def refresh_hybrid_sentiment():
+    """Recompute Hybrid Sentiment and place it immediately left of Assigned Sentiment in df_traditional."""
+    ensure_columns()
+
+    # 1) Recompute hybrid
+    st.session_state.df_traditional['Hybrid Sentiment'] = (
+        st.session_state.df_traditional['Assigned Sentiment']
+        .where(st.session_state.df_traditional['Assigned Sentiment'].notna(),
+               st.session_state.df_traditional['AI Sentiment'])
+    )
+
+    # 2) Reorder columns in-place: Hybrid just before Assigned
+    cols = list(st.session_state.df_traditional.columns)
+    if "Assigned Sentiment" in cols and "Hybrid Sentiment" in cols:
+        # Move Hybrid to just before Assigned
+        cols.remove("Hybrid Sentiment")
+        insert_at = cols.index("Assigned Sentiment")
+        cols.insert(insert_at, "Hybrid Sentiment")
+        st.session_state.df_traditional = st.session_state.df_traditional[cols]
+
+    # 3) Mirror one-per-group hybrid label in unique_stories
+    gid2hybrid = (
+        st.session_state.df_traditional
+        .dropna(subset=['Group ID'])
+        .groupby('Group ID')['Hybrid Sentiment'].first()
+    )
+    st.session_state.unique_stories['Hybrid Sentiment'] = \
+        st.session_state.unique_stories['Group ID'].map(gid2hybrid)
+
+
 # --- Recompute hybrid sentiment on load ---
 refresh_hybrid_sentiment()
 
