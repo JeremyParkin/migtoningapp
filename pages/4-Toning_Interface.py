@@ -90,6 +90,30 @@ st.session_state.setdefault("ai_loading", False)
 st.session_state.setdefault("ai_refresh_requested", False)
 
 # ===================== Utils =====================
+def _api_call_preview(model_used: str, story_prompt: str, using_functions: bool):
+    """Render a compact, copyable preview of the OpenAI chat payload."""
+    with st.expander("🔎 API call preview (what we send)", expanded=False):
+        st.caption("Model:")
+        st.code(model_used, language="text")
+
+        st.caption("messages[0] (system):")
+        st.code("You are a highly knowledgeable media analysis AI.", language="text")
+
+        st.caption("messages[1] (user):")
+        st.code(story_prompt, language="text")
+
+        st.caption("functions / function_call:")
+        if using_functions:
+            # Show the exact schema you've stored (may be long)
+            try:
+                st.code(json.dumps(st.session_state.get("functions", []), indent=2)[:4000], language="json")
+                st.caption("function_call: {\"name\": \"analyze_sentiment\"}")
+            except Exception:
+                st.code("[[unavailable]]", language="text")
+        else:
+            st.write("_Not using function-calling for this request._")
+
+
 def escape_markdown(text: str) -> str:
     """Escape Markdown special chars outside of URLs for safe st.markdown rendering."""
     text = str(text or "")
@@ -310,6 +334,12 @@ with col2:
     # ---------- AI Opinion (controlled loading) ----------
     sentiment_placeholder = st.empty()
     story_prompt = build_story_prompt(head_raw, body_raw)
+    # Optional gated preview (only for admins, or always show if you prefer)
+    if st.session_state.get("is_admin", True):  # set to False to hide for non-admins
+        _api_call_preview(
+            model_id if st.session_state.ai_model_override is None else st.session_state.ai_model_override,
+            story_prompt,
+            bool(functions))
 
     # Current cached AI values
     row_now = st.session_state.filtered_stories.iloc[counter]

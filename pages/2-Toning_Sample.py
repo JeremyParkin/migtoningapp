@@ -20,8 +20,6 @@ st.set_page_config(page_title="MIG Toning App",
 # --- Record active page in session state ---
 st.session_state.current_page = 'Toning Sample'
 
-# --- Render standard sidebar ---
-# mig.standard_sidebar()
 
 # --- Initialize elapsed time tracker ---
 if 'elapsed_time' not in st.session_state:
@@ -73,7 +71,7 @@ def preprocess_online_news(df):
 
 
 
-def cluster_similar_stories(df, similarity_threshold=0.85):
+def cluster_similar_stories(df, similarity_threshold=0.93):
     """Cluster similar stories using agglomerative clustering."""
     tfidf_vectorizer = TfidfVectorizer()
     tfidf_matrix = tfidf_vectorizer.fit_transform(df['Normalized Headline'] + " " + df['Normalized Snippet']).toarray()
@@ -96,7 +94,7 @@ def cluster_similar_stories(df, similarity_threshold=0.85):
 
 
 
-def cluster_by_media_type(df, similarity_threshold=0.92):
+def cluster_by_media_type(df, similarity_threshold=0.93):
     """Cluster stories by media type while keeping group identifiers unique."""
     type_column = 'Media Type' if 'Media Type' in df.columns else 'Type'
 
