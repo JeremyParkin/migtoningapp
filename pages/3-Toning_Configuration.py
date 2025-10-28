@@ -159,6 +159,17 @@ st.session_state.setdefault("ui_sentiment_type", _default_sent_type)
 st.session_state.setdefault("toning_config_step", False)
 st.session_state.setdefault("last_saved", None)
 
+# --- Page-specific sidebar prompt ---
+client = st.session_state.get("client_name", "<client name>")
+st.sidebar.markdown(
+    f"""## ChatGPT Prompt:
+For **{client}**, I would like to know: 
+- alternate names or aliases 
+- key spokespeople or public representatives 
+- main programs, products, initiatives or sub-brands
+"""
+)
+
 # -------------------- Admin flag (set on Getting Started) --------------------
 is_admin = bool(st.session_state.get("is_admin", False))
 
