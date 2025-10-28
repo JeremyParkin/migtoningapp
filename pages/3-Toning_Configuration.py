@@ -162,8 +162,8 @@ st.session_state.setdefault("last_saved", None)
 # --- Page-specific sidebar prompt ---
 client = st.session_state.get("client_name", "<client name>")
 st.sidebar.markdown(
-    f"""### ChatGPT Prompt:
-For **{client}**, I would like to know: 
+    f"""**ChatGPT Prompt:**
+For {client}, I would like to know: 
 - alternate names or aliases 
 - key spokespeople or public representatives 
 - main programs, products, initiatives or sub-brands
