@@ -164,9 +164,9 @@ client = st.session_state.get("client_name", "<client name>")
 st.sidebar.markdown(
     f"""**ChatGPT Prompt:**\n
 For {client}, I would like to know: 
-- alternate names or aliases 
-- key spokespeople or public representatives 
-- main programs, products, initiatives or sub-brands
+1. alternate names or aliases 
+2. key spokespeople or public representatives 
+3. main programs, products, initiatives or sub-brands
 """
 )
 
