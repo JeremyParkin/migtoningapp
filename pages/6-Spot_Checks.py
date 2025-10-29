@@ -339,7 +339,7 @@ with col2:
     st.caption(f"Group size: {group_count} stor{'y' if group_count == 1 else 'ies'}")
 
     # ---------- AI Opinion ----------
-    sentiment_placeholder = st.empty()
+    # sentiment_placeholder = st.empty()
     story_prompt = build_story_prompt(head_raw, body_raw)
 
     ai_label = row.get("AI Sentiment")
@@ -383,15 +383,16 @@ with col2:
     ai_label = row_fresh.get("AI Sentiment")
     ai_rsn   = row_fresh.get("AI Sentiment Rationale")
 
-    with sentiment_placeholder.container():
-        if st.session_state.spot_ai_loading:
-            st.info("AI is working…")
-        elif ai_label:
-            st.write(f"**{ai_label}**")
-            if ai_rsn:
-                st.caption(str(ai_rsn))
-        else:
-            st.caption("No AI opinion yet.")
+
+    # DIRECT render (no placeholder)
+    if st.session_state.spot_ai_loading:
+        st.info("AI is working…")
+    elif ai_label:
+        st.write(f"**{ai_label}**")
+        if ai_rsn:
+            st.caption(str(ai_rsn))
+    else:
+        st.caption("No AI opinion yet.")
 
     # --- Accept / Second opinion ---
     acc_col, sec_col = st.columns(2)
@@ -456,6 +457,7 @@ with col2:
             "NOT RELEVANT": "#7f8c8d",
         }
 
+
     def colored_button(label: str, key: str):
         css = f"""
         button {{
@@ -470,14 +472,18 @@ with col2:
             margin-bottom: 10px;
         }}
         """
-        with stylable_container(key=f"btn_{key}", css_styles=css):
-            return st.button(label, key=key, use_container_width=True)
+        # use a STABLE key per label (no group_id)
+        stable_key = f"manbtn_{label.replace(' ', '_')}"
+        with stylable_container(key=f"wrap_{stable_key}", css_styles=css):
+            return st.button(label, key=stable_key, use_container_width=True)
+
 
     clicked_override = None
     for lbl in manual_labels:
-        if colored_button(lbl, key=f"{lbl.replace(' ', '_')}_{current_group_id}"):
+        if colored_button(lbl, key=lbl):
             clicked_override = lbl
             break
+
 
     if clicked_override:
         _rebuild_and_advance(clicked_override)

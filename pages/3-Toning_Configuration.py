@@ -106,34 +106,6 @@ def _kw_variant_pattern(kw: str) -> str:
     return "".join(out)
 
 
-
-# def _kw_variant_pattern(kw: str) -> str:
-#     """
-#     Build a tolerant regex for a single keyword/phrase:
-#       - apostrophes: straight ' and curly ’ and prime ′
-#       - hyphens/dashes: -, ‐, ‒, –, —, −
-#       - spaces: normal + NBSP
-#       - optional dots in acronyms
-#     Everything else is escaped literally.
-#     """
-#     APOS  = r"[\'\u2019\u2032]"                 # ' ’ ′
-#     HYPH  = r"[\-\u2010\u2011\u2012\u2013\u2014\u2212]"  # - ‐ ‒ – — −
-#     SPACE = r"[ \t\u00A0]+"                     # space, tab, NBSP
-#
-#     out = []
-#     for ch in kw:
-#         if ch in ("'", "’", "′"):
-#             out.append(APOS)
-#         elif ch in ("-", "‐", "‒", "–", "—", "−"):
-#             out.append(HYPH)
-#         elif ch.isspace():
-#             out.append(SPACE)
-#         elif ch == ".":
-#             out.append(r"\.?")  # optional dot for acronyms
-#         else:
-#             out.append(re.escape(ch))
-#     return "".join(out)
-
 def build_tolerant_regex_str(keywords: List[str]) -> str | None:
     """Return a single alternation pattern string with case-insensitive flag embedded."""
     kws = [k for k in (keywords or []) if isinstance(k, str) and k.strip()]
@@ -161,13 +133,17 @@ st.session_state.setdefault("last_saved", None)
 
 # --- Page-specific sidebar prompt ---
 client = st.session_state.get("client_name", "<client name>")
-st.sidebar.markdown(
-    f"""**ChatGPT Prompt:**\n
-For {client}, I would like to know: 
-1. alternate names or aliases 
-2. key spokespeople or public representatives 
-3. main programs, products, initiatives or sub-brands
-"""
+st.sidebar.write("**ChatGPT Prompt:**")
+
+lines = [
+    f"For {client}, I would like to know:",
+    "– alternate names or aliases",
+    "– key spokespeople or public representatives",
+    "– main programs, products, initiatives or sub-brands",
+]
+st.sidebar.caption(
+    "<br>".join(lines),
+    unsafe_allow_html=True,
 )
 
 # -------------------- Admin flag (set on Getting Started) --------------------
@@ -311,20 +287,6 @@ if submitted:
         st.session_state.highlight_keyword = deduped_display
         st.session_state.highlight_regex_str = build_tolerant_regex_str(deduped_display)
 
-        # --- Build prompts ---
-        # pre_lines = [
-        #     f"PRIMARY ENTITY (focus): {named_entity}",
-        #     "Your task: Analyze sentiment toward the PRIMARY ENTITY only.",
-        #     "Consider references where sentiment should carry over to the primary entity when acting on its behalf.",
-        # ]
-        # if aliases:
-        #     pre_lines += ["", "ALIASES / ALTERNATE NAMES (treat as the same entity when present):", ", ".join(aliases)]
-        # if spokes:
-        #     pre_lines += ["", "KEY SPOKESPEOPLE (attribute their on-record statements/actions to the entity unless clearly personal/unrelated):", ", ".join(spokes)]
-        # if prods:
-        #     pre_lines += ["", "PRODUCTS / SUB-BRANDS (attribute product sentiment to the parent unless clearly isolated/unrelated):", ", ".join(prods)]
-        # pre_lines += ["", "Focus ONLY on how the coverage portrays the primary entity (including legitimate carry-over per rules above)."]
-        # st.session_state.pre_prompt = "\n".join(pre_lines).strip()
 
         # --- Build prompts ---
         # PRE-PROMPT — Collective entity framing (brand umbrella)
@@ -356,24 +318,7 @@ if submitted:
         st.session_state.pre_prompt = "\n".join(pre_lines).strip()
 
 
-        # context_lines = [
-        #     "Scope Clarifications:",
-        #     f"- Research by {named_entity} on a negative topic is not automatically negative toward the entity.",
-        #     "- Hosting/sponsoring an event about a negative issue is not automatically negative.",
-        #     "- Straight factual coverage is Neutral.",
-        #     "- Passing mentions without a strong stance are generally Neutral.",
-        #     "",
-        #     "Attribution Rules:",
-        #     f"1) When a spokesperson acts explicitly for {named_entity}, attribute that sentiment to the entity.",
-        #     f"2) When a product or sub-brand is discussed, attribute sentiment to {named_entity} unless clearly unrelated.",
-        #     "3) Do not transfer sentiment from unrelated external topics unless the article directly links them.",
-        #     f"4) If {named_entity} (or valid aliases) is not mentioned, respond with NOT RELEVANT.",
-        # ]
-        # if rationale_str:
-        #     context_lines += ["", "Analyst Rationale/Context (apply when judging gray areas):", f"- {rationale_str}"]
-        # st.session_state.post_prompt = "\n".join(context_lines).strip()
 
-        # POST-PROMPT — Clarifications + Analyst guidance priority
         context_lines = [
             "Scope Clarifications:",
             f"- Research by {named_entity} on a negative topic is not automatically negative toward the entity.",
@@ -448,36 +393,7 @@ if submitted:
                 }
             }]
 
-        #             st.session_state.sentiment_instruction = f"""
-# LABEL SET: POSITIVE, NEUTRAL, NEGATIVE, NOT RELEVANT
-#
-# CRITERIA:
-# - POSITIVE: Praises, favorable framing, or beneficial outcomes attributed to {named_entity}.
-# - NEUTRAL: Factual/balanced coverage without clear positive/negative framing of {named_entity}.
-# - NEGATIVE: Criticism, unfavorable framing, or negative outcomes attributed to {named_entity}.
-# - NOT RELEVANT: {named_entity} (or aliases) not mentioned.
-#
-# OUTPUT: Provide the uppercase label, a confidence (0–100), and a 1–2 sentence explanation focused on {named_entity}.
-# """.strip()
-#
-#             st.session_state.functions = [{
-#                 "name": "analyze_sentiment",
-#                 "description": "Analyze sentiment toward the named entity.",
-#                 "parameters": {
-#                     "type": "object",
-#                     "properties": {
-#                         "named_entity": {"type": "string", "description": "The brand/entity being analyzed."},
-#                         "sentiment": {
-#                             "type": "string",
-#                             "enum": ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"],
-#                             "description": "Sentiment toward the entity."
-#                         },
-#                         "confidence": {"type": "number", "minimum": 0, "maximum": 100, "description": "Confidence (percentage)."},
-#                         "explanation": {"type": "string", "description": "1–2 sentence rationale tied to how the story portrays the entity."}
-#                     },
-#                     "required": ["named_entity", "sentiment", "confidence", "explanation"]
-#                 }
-#             }]
+
         else:
             st.session_state.sentiment_instruction = f"""
             LABEL SET: VERY POSITIVE, SOMEWHAT POSITIVE, NEUTRAL, SOMEWHAT NEGATIVE, VERY NEGATIVE, NOT RELEVANT
@@ -523,41 +439,6 @@ if submitted:
                 }
             }]
 
-        #             st.session_state.sentiment_instruction = f"""
-# LABEL SET: VERY POSITIVE, SOMEWHAT POSITIVE, NEUTRAL, SOMEWHAT NEGATIVE, VERY NEGATIVE, NOT RELEVANT
-#
-# CRITERIA:
-# - VERY POSITIVE: Strong praise or substantial positive impact credited to {named_entity}.
-# - SOMEWHAT POSITIVE: Moderately favorable framing or minor positive outcomes.
-# - NEUTRAL: Factual/balanced with no clear stance on {named_entity}.
-# - SOMEWHAT NEGATIVE: Mild criticism or limited negative impact.
-# - VERY NEGATIVE: Strong criticism or substantial negative impact attributed to {named_entity}.
-# - NOT RELEVANT: {named_entity} (or aliases) not mentioned.
-#
-# OUTPUT: Provide the uppercase label, a confidence (0–100), and a 1–2 sentence explanation focused on {named_entity}.
-# """.strip()
-#
-#             st.session_state.functions = [{
-#                 "name": "analyze_sentiment",
-#                 "description": "Analyze sentiment toward the named entity with intensity levels.",
-#                 "parameters": {
-#                     "type": "object",
-#                     "properties": {
-#                         "named_entity": {"type": "string", "description": "The brand/entity being analyzed."},
-#                         "sentiment": {
-#                             "type": "string",
-#                             "enum": [
-#                                 "VERY POSITIVE", "SOMEWHAT POSITIVE", "NEUTRAL",
-#                                 "SOMEWHAT NEGATIVE", "VERY NEGATIVE", "NOT RELEVANT"
-#                             ],
-#                             "description": "Sentiment toward the entity with intensity."
-#                         },
-#                         "confidence": {"type": "number", "minimum": 0, "maximum": 100, "description": "Confidence (percentage)."},
-#                         "explanation": {"type": "string", "description": "1–2 sentence rationale tied to how the story portrays the entity."}
-#                     },
-#                     "required": ["named_entity", "sentiment", "confidence", "explanation"]
-#                 }
-#             }]
 
         st.session_state.toning_config_step = True
         st.session_state.last_saved = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
