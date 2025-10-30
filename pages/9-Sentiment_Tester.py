@@ -5,11 +5,11 @@ import streamlit as st
 import mig_functions as mig
 
 # --- Configure Streamlit page ---
-st.set_page_config(
-    page_title="MIG Sentiment Tester",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# st.set_page_config(
+#     page_title="MIG Sentiment Tester",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 # mig.standard_sidebar()
 if not st.session_state.get("is_admin"):
     st.error("This page is only available to admins.")

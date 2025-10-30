@@ -11,11 +11,11 @@ from threading import Lock
 from openai import OpenAI
 
 # --- Configure Streamlit page ---
-st.set_page_config(
-    page_title="Bulk AI Sentiment",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# st.set_page_config(
+#     page_title="Bulk AI Sentiment",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 
 # Standard sidebar (reads running totals from session_state)
 # mig.standard_sidebar()

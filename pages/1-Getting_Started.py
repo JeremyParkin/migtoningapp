@@ -5,12 +5,12 @@ import pandas as pd
 import hashlib
 import mig_functions as mig
 
-# ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="MIG Toning App",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# # ── Page config ────────────────────────────────────────────────────────────────
+# st.set_page_config(
+#     page_title="MIG Toning App",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 
 # ── Sidebar / title ───────────────────────────────────────────────────────────
 # mig.standard_sidebar()

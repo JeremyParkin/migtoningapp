@@ -13,11 +13,11 @@ from openai import OpenAI
 from streamlit_extras.stylable_container import stylable_container
 
 # --- Configure Streamlit page ---
-st.set_page_config(
-    page_title="MIG Sentiment Tool",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# st.set_page_config(
+#     page_title="MIG Sentiment Tool",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 # Global CSS: add top padding
 st.markdown("<style>.block-container{padding-top:3rem !important;}</style>", unsafe_allow_html=True)
 

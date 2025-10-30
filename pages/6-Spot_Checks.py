@@ -13,11 +13,11 @@ from openai import OpenAI
 from streamlit_extras.stylable_container import stylable_container
 
 # ==================== Page ====================
-st.set_page_config(
-    page_title="Spot Check AI Labels",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# st.set_page_config(
+#     page_title="Spot Check AI Labels",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 st.markdown("<style>.block-container{padding-top:3rem !important;}</style>", unsafe_allow_html=True)
 st.session_state.current_page = "Spot Check"
 

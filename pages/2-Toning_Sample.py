@@ -12,10 +12,10 @@ from sklearn.metrics.pairwise import cosine_distances
 import time
 
 
-# --- Configure Streamlit page ---
-st.set_page_config(page_title="MIG Toning App",
-                   page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-                   layout="wide")
+# # --- Configure Streamlit page ---
+# st.set_page_config(page_title="MIG Toning App",
+#                    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#                    layout="wide")
 
 # --- Record active page in session state ---
 st.session_state.current_page = 'Toning Sample'

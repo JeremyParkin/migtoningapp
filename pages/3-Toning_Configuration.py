@@ -10,12 +10,12 @@ import mig_functions as mig
 from datetime import datetime
 from typing import List
 
-# --- Configure Streamlit page ---
-st.set_page_config(
-    page_title="MIG Sentiment Tool",
-    page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-    layout="wide",
-)
+# # --- Configure Streamlit page ---
+# st.set_page_config(
+#     page_title="MIG Sentiment Tool",
+#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
+#     layout="wide",
+# )
 st.session_state.current_page = "Toning Configuration"
 # mig.standard_sidebar()
 
