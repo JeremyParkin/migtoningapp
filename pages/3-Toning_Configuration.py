@@ -10,12 +10,7 @@ import mig_functions as mig
 from datetime import datetime
 from typing import List
 
-# # --- Configure Streamlit page ---
-# st.set_page_config(
-#     page_title="MIG Sentiment Tool",
-#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-#     layout="wide",
-# )
+
 st.session_state.current_page = "Toning Configuration"
 # mig.standard_sidebar()
 
@@ -170,7 +165,7 @@ with st.form("toning_config_form", clear_on_submit=False):
         )
     with col2:
         # Build model list; expose GPT-5 only to admins
-        base_models = ["gpt-5-mini", "gpt-4.1-mini"]
+        base_models = ["gpt-4.1-mini", "gpt-5-mini"]
         if is_admin:
             base_models.append("gpt-5")
 

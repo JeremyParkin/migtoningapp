@@ -12,7 +12,7 @@ def standard_sidebar() -> None:
         width=180,
     )
     st.sidebar.subheader("MIG Toning App")
-    st.sidebar.caption("Version: October 2025")
+    st.sidebar.caption("Version: November 2025")
 
     # Sidebar width/overflow tweaks (keep nav readable on long titles)
     st.markdown(
@@ -56,7 +56,9 @@ def build_pages(is_admin: bool) -> list:
         st.Page("pages/5-AI_Sentiment.py", title="AI Sentiment", icon=":material/auto_awesome:"),
         st.Page("pages/6-Spot_Checks.py", title="Spot Checks", icon=":material/fact_check:"),
         st.Page("pages/8-Download.py", title="Download", icon=":material/download:"),
+        st.Page("pages/7-Save_Load.py", title="Save & Load", icon=":material/save:"),
     ]
+
     if is_admin:
         pages.append(
             st.Page("pages/9-Sentiment_Tester.py", title="Sentiment Tester", icon=":material/analytics:")
