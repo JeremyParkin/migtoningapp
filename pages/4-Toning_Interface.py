@@ -13,11 +13,6 @@ from openai import OpenAI
 from streamlit_extras.stylable_container import stylable_container
 
 # --- Configure Streamlit page ---
-# st.set_page_config(
-#     page_title="MIG Sentiment Tool",
-#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-#     layout="wide",
-# )
 # Global CSS: add top padding
 st.markdown("<style>.block-container{padding-top:3rem !important;}</style>", unsafe_allow_html=True)
 
@@ -417,15 +412,7 @@ with col2:
                 )
                 st.rerun()
 
-        # if st.button("✅ Accept opinion", disabled=accept_disabled, help=accept_help):
-        #     if ai_label:
-        #         mask_trad = st.session_state.df_traditional["Group ID"] == current_group_id
-        #         st.session_state.df_traditional.loc[mask_trad, "Assigned Sentiment"] = ai_label
-        #         st.session_state.counter = min(
-        #             len(st.session_state.filtered_stories) - 1,
-        #             st.session_state.counter + 1
-        #         )
-        #         st.rerun()
+
 
     with sec_col:
         # Second opinion = force GPT-5 once, then reset override after call completes
@@ -444,24 +431,19 @@ with col2:
     # --- Stacked, color-coded manual sentiment buttons ---
     st.caption("Or pick a different label:")
     if sentiment_type == "5-way":
-        manual_labels = [
-            "VERY NEGATIVE",
-            "SOMEWHAT NEGATIVE",
-            "NEUTRAL",
-            "SOMEWHAT POSITIVE",
-            "VERY POSITIVE",
+        manual_labels = ["VERY POSITIVE", "SOMEWHAT POSITIVE", "NEUTRAL", "SOMEWHAT NEGATIVE", "VERY NEGATIVE",
             "NOT RELEVANT",
         ]
         palette = {
             "VERY NEGATIVE": "#c0392b",
             "SOMEWHAT NEGATIVE": "#e67e22",
             "NEUTRAL": "#f1c40f",
-            "SOMEWHAT POSITIVE": "#2ecc71",
-            "VERY POSITIVE": "#27ae60",
+            "SOMEWHAT POSITIVE": "#72cc4a",
+            "VERY POSITIVE": "#10ad82",
             "NOT RELEVANT": "#7f8c8d",
         }
     else:
-        manual_labels = ["NEGATIVE", "NEUTRAL", "POSITIVE", "NOT RELEVANT"]
+        manual_labels = ["POSITIVE", "NEUTRAL", "NEGATIVE", "NOT RELEVANT"]
         palette = {
             "NEGATIVE": "#e74c3c",
             "NEUTRAL": "#f1c40f",
@@ -483,8 +465,9 @@ with col2:
             margin-bottom: 10px;
         }}
         """
-        with stylable_container(key=f"btn_{key}", css_styles=css):
-            return st.button(label, key=key)
+        stable_key = f"manbtn_{label.replace(' ', '_')}"
+        with stylable_container(key=f"wrap_{stable_key}", css_styles=css):
+            return st.button(label, key=stable_key, use_container_width=True)
 
     clicked_override = None
     for lbl in manual_labels:
