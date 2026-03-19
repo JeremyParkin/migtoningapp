@@ -21,7 +21,7 @@ def standard_sidebar() -> None:
           .eczjsme9, .st-emotion-cache-1wqrzgl { overflow: visible !important; max-width: 250px !important; }
           .st-emotion-cache-a8w3f8 { overflow: visible !important; }
           .st-emotion-cache-1cypcdb { max-width: 250px !important; }
-          .e1mq0gaz1, .e1mq0gaz0 { filter: brightness(10); max-width: 150px !important; }
+          .e1mq0gaz1, .e1mq0gaz0, e115fcil1 { filter: brightness(10); max-width: 150px !important; }
           
         </style>
         """,
@@ -102,13 +102,15 @@ def format_number(num: float | int) -> str:
 # OpenAI Usage Metering
 # ----------------------------
 _OPENAI_PRICES = {
+    "gpt-5.4-nano":  {"in": 0.20, "out": 1.25},
+    "gpt-5.4-mini":  {"in": 0.75, "out": 4.50},
     "gpt-5-mini":  {"in": 0.25, "out": 2.00},
-    "gpt-4o-mini": {"in": 0.15, "out": 0.60},
     "gpt-4.1-mini": {"in": 0.40, "out": 1.60},
-    "gpt-5": {"in": 1.25, "out": 10.00},
+    # "gpt-4o-mini": {"in": 0.15, "out": 0.60},
+    # "gpt-5": {"in": 1.25, "out": 10.00},
     # Optional extras if you ever use them:
-    "gpt-4o":      {"in": 2.50, "out": 10.00},
-    "gpt-5-nano":  {"in": 0.05, "out": 0.40},
+    # "gpt-4o":      {"in": 2.50, "out": 10.00},
+    # "gpt-5-nano":  {"in": 0.05, "out": 0.40},
 }
 
 def _init_api_meter() -> None:

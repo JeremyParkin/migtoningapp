@@ -15,7 +15,7 @@ string_vars = {
     "sentiment_type": "3-way",
     "client_name": "",
     "focus": "",
-    "model_choice": "gpt-5-mini",
+    "model_choice": "gpt-5.4-nano",
     "counter": 0,
     "analysis_note": "",
     "group_ids": "",
