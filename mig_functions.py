@@ -12,7 +12,7 @@ def standard_sidebar() -> None:
         width=180,
     )
     st.sidebar.subheader("MIG Toning App")
-    st.sidebar.caption("Version: November 2025")
+    st.sidebar.caption("Version: March 2026")
 
     # Sidebar width/overflow tweaks (keep nav readable on long titles)
     st.markdown(
