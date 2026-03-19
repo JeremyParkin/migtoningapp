@@ -11,11 +11,6 @@ from threading import Lock
 from openai import OpenAI
 
 # --- Configure Streamlit page ---
-# st.set_page_config(
-#     page_title="Bulk AI Sentiment",
-#     page_icon="https://www.agilitypr.com/wp-content/uploads/2025/01/favicon.png",
-#     layout="wide",
-# )
 
 # Standard sidebar (reads running totals from session_state)
 # mig.standard_sidebar()
@@ -45,7 +40,7 @@ pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
-model_id = (st.session_state.get("model_choice") or "gpt-5-mini").strip()
+model_id = (st.session_state.get("model_choice") or "gpt-5.4-mini").strip()
 
 # --- Sentiment set ---
 _raw_st = st.session_state.get("sentiment_type") or st.session_state.get("ui_sentiment_type") or "3-way"

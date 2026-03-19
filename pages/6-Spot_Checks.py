@@ -33,9 +33,9 @@ pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
-model_id = st.session_state.get("model_choice", "gpt-5-mini")
+model_id = st.session_state.get("model_choice", "gpt-5.4-nano")
 
-SECOND_OPINION_MODEL = "gpt-5"
+SECOND_OPINION_MODEL = "gpt-5.4-mini"
 st.session_state.setdefault("spot_ai_model_override", None)
 
 _raw_st = st.session_state.get("sentiment_type", "3-way")

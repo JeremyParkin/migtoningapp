@@ -43,10 +43,10 @@ pre_prompt = st.session_state.get("pre_prompt", "")
 post_prompt = st.session_state.get("post_prompt", "")
 sentiment_instruction = st.session_state.get("sentiment_instruction", "")
 functions = st.session_state.get("functions", [])
-model_id = st.session_state.get("model_choice", "gpt-5-mini")
+model_id = st.session_state.get("model_choice", "gpt-5.4-nano")
 
 # Force second opinion to GPT-5 (pricing already in mig_functions)
-SECOND_OPINION_MODEL = "gpt-5"
+SECOND_OPINION_MODEL = "gpt-5.4-mini"
 st.session_state.setdefault("ai_model_override", None)  # one-shot override holder
 
 # --- Normalise sentiment type (3-way vs 5-way) ---
@@ -197,7 +197,7 @@ def build_story_prompt(headline: str, snippet: str) -> str:
     return "\n\n".join(parts)
 
 def call_ai_sentiment(story_prompt: str, model_override: str | None = None):
-    """Generate sentiment using selected model; allow one-shot override (e.g., GPT-5 for 'Second opinion')."""
+    """Generate sentiment using selected model; allow one-shot override (e.g., GPT-5.4 for 'Second opinion')."""
     model_to_use = model_override or model_id
     # 1) Function-calling path
     try:
@@ -353,7 +353,7 @@ with col2:
         with st.spinner("Generating AI opinion..."):
             ai_result = call_ai_sentiment(
                 story_prompt,
-                model_override=st.session_state.ai_model_override  # may force gpt-5 for second opinion
+                model_override=st.session_state.ai_model_override  # may force gpt-5.4 for second opinion
             )
         if ai_result:
             label = ai_result.get("sentiment")
@@ -415,11 +415,10 @@ with col2:
 
 
     with sec_col:
-        # Second opinion = force GPT-5 once, then reset override after call completes
         if st.button("↻ Second opinion", disabled=st.session_state.ai_loading):
             st.session_state.ai_loading = True
             st.session_state.ai_refresh_requested = True
-            st.session_state.ai_model_override = SECOND_OPINION_MODEL  # <- force GPT-5 for next run
+            st.session_state.ai_model_override = SECOND_OPINION_MODEL  # <- force GPT-5.4-mini for next run
             # Clear cached AI fields for this group so the UI shows the spinner & disables Accept
             for df_name in ["filtered_stories", "unique_stories", "df_traditional"]:
                 df = st.session_state.get(df_name)

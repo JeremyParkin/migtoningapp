@@ -165,9 +165,9 @@ with st.form("toning_config_form", clear_on_submit=False):
         )
     with col2:
         # Build model list; expose GPT-5 only to admins
-        base_models = ["gpt-5.4-nano", "gpt-4.1-mini", "gpt-5-mini"]
-        if is_admin:
-            base_models.append("gpt-5.4-mini")
+        base_models = ["gpt-5.4-nano", "gpt-5-mini", "gpt-4.1-mini", ]
+        # if is_admin:
+        #     base_models.append("gpt-5.4-mini")
 
         # Determine current selection (coerce hidden value if necessary)
         current_choice = st.session_state.get("model_choice", "gpt-5.4-nano")
@@ -179,12 +179,14 @@ with st.form("toning_config_form", clear_on_submit=False):
             "Select Model",
             base_models,
             index=base_models.index(current_choice) if current_choice in base_models else 0,
-            help=("gpt-5 is available (admin). " if is_admin else "") + "GPT-5-mini is recommended for most tasks.",
+            help="gpt-5.4-nano is recommended for most tasks.",
             key="model_choice_select",
         )
     with col3:
         st.markdown("<small>Model notes:</small>", unsafe_allow_html=True)
-        st.caption("* gpt-5.4-nano: fast and good. \n* gpt-5-mini - good but slower.\n* gpt-4.1-mini is okay and faster.")
+        st.caption("* gpt-5.4-nano: best balance of quality and speed.\n"
+                   "* gpt-5-mini: older fallback option.\n"
+                   "* gpt-4.1-mini: legacy fast option")
 
 
     st.divider()
@@ -257,10 +259,11 @@ if submitted:
         st.session_state.sentiment_type = sentiment_type
 
         # Coerce model if necessary (admin-only protection)
-        chosen_model = model
-        if (not is_admin) and chosen_model == "gpt-5.4-mini":
-            chosen_model = "gpt-5.4-nano"
-        st.session_state.model_choice = chosen_model
+        # chosen_model = model
+        # if (not is_admin) and chosen_model == "gpt-5.4-mini":
+        #     chosen_model = "gpt-5.4-nano"
+        # st.session_state.model_choice = chosen_model
+        st.session_state.model_choice = model
 
         named_entity = st.session_state.ui_primary_names[0]
         aliases = st.session_state.ui_alternate_names
@@ -364,6 +367,7 @@ if submitted:
             OUTPUT:
             - Provide the UPPERCASE label, a confidence (0–100), and a 1–2 sentence explanation focused on the collective entity.
             - If Analyst Guidance was provided and altered the default outcome, mention that in the explanation.
+            - Always output results in English.
             """.strip()
 
             st.session_state.functions = [{
