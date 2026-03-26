@@ -147,7 +147,7 @@ is_admin = bool(st.session_state.get("is_admin", False))
 # -------------------- Configuration form --------------------
 with st.form("toning_config_form", clear_on_submit=False):
     primary_names = st_tags(
-        label="**Primary name(s)**",
+        label="**Primary Name**",
         text="Press enter to add more",
         maxtags=1,
         value=st.session_state.ui_primary_names,
